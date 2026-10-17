@@ -1,0 +1,95 @@
+:root{color-scheme:light;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}
+
+/* Layout: punch-clock tool. Phone = scrolling header + fixed bottom tab bar + floating timer;
+   desktop = sticky left rail. The log book is a green-ruled ledger with numbered entries. */
+:root{
+  --bg:#E8EEEA; --surface:#FFFFFF; --surface-glass:rgba(255,255,255,.88); --sunk:#DEE6E0;
+  --ink:#101915; --muted:#4E5E56; --faint:#7A8981;
+  --line:#C9D5CD; --line-strong:#AEBFB4; --rule:#E0E7E2;
+  --accent:#14634E; --accent-hi:#1C7D63; --accent-ink:#FFFFFF; --accent-soft:#D4ECE2;
+  --accent-grad:linear-gradient(180deg,#1E7B62 0%,#125845 100%);
+  --signal:#B86206; --signal-soft:#FDEBD0;
+  --danger:#BE3420; --danger-soft:#FADDD7;
+  --info:#225888; --info-soft:#D8E7F5;
+  --scrim:rgba(10,18,15,.52); --bar:#101A16; --bar-fg:#EDF3F0; --bar-hi:#F5A638;
+  --rail-bg:linear-gradient(168deg,#14221C 0%,#0C1512 100%);
+  --rail-ink:#EEF4F1; --rail-muted:#93A79E; --rail-faint:#63776E;
+  --rail-surface:rgba(255,255,255,.055); --rail-hover:rgba(255,255,255,.08); --rail-line:rgba(255,255,255,.10);
+  --rail-accent:#5CE0B5; --rail-accent-soft:rgba(92,224,181,.15);
+  --mine:#D4ECE2; --theirs:#FFFFFF;
+  --inset-hi:inset 0 1px 0 rgba(255,255,255,.8);
+  --shadow-xs:0 1px 2px rgba(14,24,20,.06);
+  --shadow-sm:0 1px 3px rgba(14,24,20,.06),0 6px 16px rgba(14,24,20,.05);
+  --shadow:0 4px 10px rgba(14,24,20,.07),0 18px 40px rgba(14,24,20,.13);
+  --shadow-accent:0 1px 2px rgba(14,24,20,.16),0 6px 16px rgba(20,99,78,.26),inset 0 1px 0 rgba(255,255,255,.25);
+  --bg-glow:radial-gradient(1200px 560px at 8% -10%,rgba(20,99,78,.12),transparent 60%),radial-gradient(900px 500px at 96% 0%,rgba(184,98,6,.07),transparent 58%);
+  --c1:#14634E; --c2:#225888; --c3:#B86206; --c4:#84408A; --c5:#BE3420; --c6:#167782; --c7:#606D16; --c8:#505F6B;
+  --f-display:"Archivo","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0A0F0D; --surface:#121A17; --surface-glass:rgba(18,26,23,.88); --sunk:#18231F;
+    --ink:#E7F0EB; --muted:#95A79E; --faint:#66776F;
+    --line:#24312B; --line-strong:#32443B; --rule:#1B2621;
+    --accent:#56C49F; --accent-hi:#6BD2AF; --accent-ink:#06130F; --accent-soft:#163329;
+    --accent-grad:linear-gradient(180deg,#68D0AD 0%,#45B08C 100%);
+    --signal:#F2A73D; --signal-soft:#35250F;
+    --danger:#F27E67; --danger-soft:#391C17;
+    --info:#80B3E3; --info-soft:#18293A;
+    --scrim:rgba(0,0,0,.66); --bar:#1B2823; --bar-fg:#E7F0EB; --bar-hi:#F2A73D;
+    --rail-bg:linear-gradient(168deg,#131D19 0%,#0D1411 100%);
+    --rail-ink:#E7F0EB; --rail-muted:#95A79E; --rail-faint:#66776F;
+    --rail-surface:rgba(255,255,255,.045); --rail-hover:rgba(255,255,255,.075); --rail-line:rgba(255,255,255,.09);
+    --rail-accent:#5CE0B5; --rail-accent-soft:rgba(92,224,181,.15);
+    --mine:#163329; --theirs:#18231F;
+    --inset-hi:inset 0 1px 0 rgba(255,255,255,.05);
+    --shadow-xs:0 1px 2px rgba(0,0,0,.38);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.42),0 8px 20px rgba(0,0,0,.30);
+    --shadow:0 4px 10px rgba(0,0,0,.48),0 20px 44px rgba(0,0,0,.56);
+    --shadow-accent:0 1px 2px rgba(0,0,0,.45),0 6px 18px rgba(86,196,159,.22),inset 0 1px 0 rgba(255,255,255,.28);
+    --bg-glow:radial-gradient(1200px 560px at 8% -10%,rgba(86,196,159,.10),transparent 60%),radial-gradient(900px 500px at 96% 0%,rgba(242,167,61,.05),transparent 58%);
+    --c1:#56C49F; --c2:#80B3E3; --c3:#F2A73D; --c4:#D39BD8; --c5:#F08C76; --c6:#6CC8D3; --c7:#BCC66A; --c8:#A8B5C1;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0A0F0D; --surface:#121A17; --surface-glass:rgba(18,26,23,.88); --sunk:#18231F;
+  --ink:#E7F0EB; --muted:#95A79E; --faint:#66776F;
+  --line:#24312B; --line-strong:#32443B; --rule:#1B2621;
+  --accent:#56C49F; --accent-hi:#6BD2AF; --accent-ink:#06130F; --accent-soft:#163329;
+  --accent-grad:linear-gradient(180deg,#68D0AD 0%,#45B08C 100%);
+  --signal:#F2A73D; --signal-soft:#35250F;
+  --danger:#F27E67; --danger-soft:#391C17;
+  --info:#80B3E3; --info-soft:#18293A;
+  --scrim:rgba(0,0,0,.66); --bar:#1B2823; --bar-fg:#E7F0EB; --bar-hi:#F2A73D;
+  --rail-bg:linear-gradient(168deg,#131D19 0%,#0D1411 100%);
+  --rail-ink:#E7F0EB; --rail-muted:#95A79E; --rail-faint:#66776F;
+  --rail-surface:rgba(255,255,255,.045); --rail-hover:rgba(255,255,255,.075); --rail-line:rgba(255,255,255,.09);
+  --rail-accent:#5CE0B5; --rail-accent-soft:rgba(92,224,181,.15);
+  --mine:#163329; --theirs:#18231F;
+  --inset-hi:inset 0 1px 0 rgba(255,255,255,.05);
+  --shadow-xs:0 1px 2px rgba(0,0,0,.38);
+  --shadow-sm:0 1px 3px rgba(0,0,0,.42),0 8px 20px rgba(0,0,0,.30);
+  --shadow:0 4px 10px rgba(0,0,0,.48),0 20px 44px rgba(0,0,0,.56);
+  --shadow-accent:0 1px 2px rgba(0,0,0,.45),0 6px 18px rgba(86,196,159,.22),inset 0 1px 0 rgba(255,255,255,.28);
+  --bg-glow:radial-gradient(1200px 560px at 8% -10%,rgba(86,196,159,.10),transparent 60%),radial-gradient(900px 500px at 96% 0%,rgba(242,167,61,.05),transparent 58%);
+  --c1:#56C49F; --c2:#80B3E3; --c3:#F2A73D; --c4:#D39BD8; --c5:#F08C76; --c6:#6CC8D3; --c7:#BCC66A; --c8:#A8B5C1;
+  color-scheme:dark;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;min-height:100dvh;background-color:var(--bg);background-image:var(--bg-glow);background-attachment:fixed;color:var(--ink);font:400 15px/1.5 var(--f-body);-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:40;background:var(--bg)}
+::selection{background:var(--accent-soft);color:var(--accent)}
+button,input,select,textarea{font:inherit;color:inherit;transition:border-color .15s ease,background-color .15s ease,color .15s ease,box-shadow .15s ease,transform .1s ease}
+button{cursor:pointer}
+button:disabled{cursor:default;opacity:.5}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+svg{flex:none}
+.ico{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.lbl{font:600 11px/1.2 var(--f-mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.muted{color:var(--muted)}

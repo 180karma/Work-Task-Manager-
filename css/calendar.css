@@ -1,0 +1,36 @@
+/* ---------- calendar ---------- */
+.calbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.calbar h2{margin:0;font-size:18px;flex:1;min-width:8em}
+.calfilters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.calfilters button{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font-size:12.5px;font-weight:600}
+.calfilters button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.calfilters i{width:8px;height:8px;border-radius:50%;background:var(--dot,var(--accent))}
+.calgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.calwd{text-align:center;font:600 10px/1 var(--f-mono);letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:2px 0 4px}
+.calcell{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-height:58px;padding:4px 5px;border:1px solid var(--line);border-radius:10px;background:var(--surface);text-align:left}
+.calcell .n{font:600 12px/1 var(--f-mono)}
+.calcell.out{opacity:.42}
+.calcell.today{border-color:var(--accent)}
+.calcell.on{background:var(--accent-soft);border-color:var(--accent)}
+.cdots{display:flex;gap:3px;flex-wrap:wrap}
+.cdots i{width:7px;height:7px;border-radius:50%}
+.k-job{background:var(--accent)}
+.k-event{background:var(--info)}
+.k-booking{background:var(--signal)}
+.k-holiday{background:var(--c4)}
+.calday{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:var(--shadow-sm)}
+.calday h3{margin:0 0 8px;font-size:16px}
+.calday ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.calday li button{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:var(--bg);text-align:left}
+.calday .mark{width:8px;height:8px;border-radius:50%;flex:none}
+.calday .ttl{font-weight:700;font-size:14px}
+.calday .sub{display:block;font-size:12px;color:var(--muted);font-weight:400}
+.calday .done{opacity:.55;text-decoration:line-through}
+#calForm{margin-top:12px}
+#calForm .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+#calHolBox{margin-top:8px;padding-top:8px;border-top:1px dashed var(--rule)}
+#calHolBox p{margin:0 0 8px;font-size:13px;color:var(--muted)}
+@media (max-width:899px){
+  .calcell{min-height:46px;padding:3px}
+  .calcell .n{font-size:11px}
+}

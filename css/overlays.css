@@ -1,0 +1,78 @@
+/* ---------- sheet ---------- */
+.sheet-wrap{position:fixed;inset:0;z-index:50}
+.scrim{position:absolute;inset:0;background:var(--scrim);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);animation:fade .18s ease-out}
+.sheet{position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;max-height:92dvh;border-radius:20px 20px 0 0;background:var(--surface);box-shadow:var(--shadow);animation:up .22s cubic-bezier(.2,.8,.2,1);outline:0}
+.sh-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px max(14px,env(safe-area-inset-right,0px)) 8px max(20px,env(safe-area-inset-left,0px))}
+.sh-sub{font-size:12px;color:var(--faint);margin-top:3px}
+.sh-body{display:flex;flex-direction:column;gap:16px;overflow:auto;overscroll-behavior:contain;padding:6px max(20px,env(safe-area-inset-right,0px)) 22px max(20px,env(safe-area-inset-left,0px))}
+.sh-body > *{flex-shrink:0}
+.sh-foot{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:12px max(20px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px));border-top:1px solid var(--line);background:color-mix(in srgb,var(--surface) 75%,var(--bg))}
+.sh-foot .spacer{flex:1}
+.sh-foot .dirty{font-size:12.5px;color:var(--signal);font-weight:600}
+.ttl{width:100%;min-height:40px;padding:2px 0;border:0;border-bottom:1px solid var(--line);background:none;resize:none;font:700 20px/1.3 var(--f-body);outline:0;overflow:hidden}
+.ttl:focus{border-color:var(--accent)}
+.fgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.fld .seg{align-self:flex-start}
+.fld textarea.field{min-height:96px}
+.duewrap{display:flex;gap:6px;flex-wrap:wrap}
+.duewrap .field{flex:1 1 150px}
+.chipline{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.sugg{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px;color:var(--muted)}
+.sugg button{border:1px dashed var(--accent);background:none;border-radius:999px;min-height:26px;padding:0 9px;font-size:12.5px;font-weight:600;color:var(--accent)}
+.hist{list-style:none;margin:6px 0 0 4px;padding:0;border-left:2px solid var(--rule)}
+.hist li{position:relative;padding:2px 0 12px 16px;font-size:13px}
+.hist li::before{content:"";position:absolute;left:-6px;top:7px;width:10px;height:10px;border-radius:50%;background:var(--tone);box-shadow:0 0 0 3px var(--surface)}
+.hist .when{font:500 11.5px var(--f-mono);color:var(--faint)}
+.hist .what{font-weight:600}
+.hist .det{color:var(--muted);overflow-wrap:anywhere}
+.textout{width:100%;min-height:240px;font:12px/1.5 var(--f-mono)}
+.profile-head{display:flex;align-items:center;gap:14px}
+.profile-head b{display:block;font-size:18px}
+@media (min-width:900px){
+  .sheet{left:auto;top:0;width:min(510px,100%);max-height:none;border-radius:0;border-left:1px solid var(--line);animation:side .22s cubic-bezier(.2,.8,.2,1)}
+  .sheet.wide{width:min(760px,100%)}
+  .sh-head{padding-top:22px}
+}
+.kwsheet{gap:10px}
+.kwbar,.kwadd{display:flex;flex-wrap:wrap;gap:8px}
+.kwbar .field{flex:1 1 140px}
+.kwadd{flex-direction:column}
+.kwadd .field,.kwadd .btn{width:100%}
+.kwgrid{overflow:auto;max-height:min(58dvh,640px);border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.kwgrid table{border-collapse:collapse;width:100%;font-size:13px}
+.kwgrid th,.kwgrid td{border:1px solid var(--line);height:30px;padding:0;text-align:left;vertical-align:middle}
+.kwgrid th{position:sticky;top:0;z-index:1;background:var(--sunk);padding:0 8px;font:600 11px var(--f-mono);letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.kwgrid td.word{font-weight:600}
+.kwgrid tr:nth-child(even) td{background:color-mix(in srgb,var(--sunk) 45%,transparent)}
+.kwgrid .kw-in{width:100%;height:30px;border:0;background:transparent;padding:0 8px;font:13px var(--f-body);border-radius:0}
+.kwgrid .kw-in:focus{outline:2px solid var(--accent);outline-offset:-2px;background:var(--surface)}
+.kwgrid .x{margin:0 4px}
+.kwmap{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto;padding:2px}
+.kwmap label{display:flex;align-items:center;gap:8px;font-size:13px}
+.kwmap label span{flex:1 1 90px;font-weight:600}
+.kwmap select{flex:1 1 140px;height:32px}
+@keyframes up{from{transform:translateY(40px)}}
+@keyframes side{from{transform:translateX(40px)}}
+@keyframes fade{from{opacity:0}}
+
+/* ---------- toasts ---------- */
+.toasts{position:fixed;z-index:80;left:0;right:0;top:calc(12px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.toast{display:flex;align-items:center;gap:12px;max-width:min(520px,100%);padding:10px 10px 10px 14px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:var(--ink);color:var(--bg);box-shadow:var(--shadow);font-size:14px;pointer-events:auto;animation:fade .2s}
+.toast.danger{background:var(--danger);color:var(--surface)}
+.toast button{flex:none;min-height:32px;padding:0 10px;border:1px solid currentColor;border-radius:8px;background:none;color:inherit;font-weight:700;font-size:13px}
+
+@media (max-width:640px){
+  .cmp-tools{flex-wrap:wrap;overflow:visible}
+  .tool{min-height:32px;padding:0 9px;font-size:12.5px}
+  .field,.cmp-main input,.ttl,textarea{font-size:16px}
+  .fgrid{grid-template-columns:1fr}
+  #taskTabs{display:flex;width:100%}
+  #taskTabs button{flex:1 1 auto;padding:0 6px;font-size:12.5px}
+  .pairrow{flex:1 1 100%}
+  .pairrow > select{flex:1 1 0;min-width:0}
+  .sortpick{flex:1.35 1 0;min-width:0}
+  .sortpick select{flex:1;min-width:0}
+}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}

@@ -1,0 +1,51 @@
+name: Deploy site to GitHub Pages
+
+# Needs Settings → Pages → Source set to "GitHub Actions".
+# config.js is built from the repository variables SUPABASE_URL and SUPABASE_ANON_KEY (anon or publishable key only).
+# Optional ADMIN_EMAILS (comma-separated sign-in emails) limits delete to those admin accounts.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build the site with config.js
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
+          ADMIN_EMAILS: ${{ vars.ADMIN_EMAILS || secrets.ADMIN_EMAILS }}
+        run: |
+          mkdir -p _site
+          cp index.html invoice_scraper.html supabase-schema.sql _site/
+          touch _site/.nojekyll
+          node scripts/make-config.mjs _site/config.js
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

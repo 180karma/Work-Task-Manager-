@@ -30,7 +30,7 @@ const config = `// Public Supabase settings for the browser.
 window.WTM_CONFIG = {
   url: ${JSON.stringify(env.SUPABASE_URL || "")},
   anonKey: ${JSON.stringify(env.SUPABASE_ANON_KEY || "")},
-  invoicesUrl: ${JSON.stringify(env.INVOICE_SCRAPER_URL ?? "https://180karma.github.io/Invoice_scraper/")},
+  invoicesUrl: ${JSON.stringify(env.INVOICE_SCRAPER_URL ?? "invoices/invoice_scraper.html")},
 };
 `;
 

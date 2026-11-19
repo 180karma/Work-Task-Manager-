@@ -464,9 +464,19 @@ const normCal = c => Object.assign({}, c, {
   starts: c.starts ? String(c.starts).slice(0, 5) : null, notes: c.notes || '',
   created_at: ms(c.created_at), updated_at: ms(c.updated_at), deleted_at: ms(c.deleted_at)
 });
+function isItDept(d) {
+  if (!d) return false;
+  const code = String(d.code || '').trim().toLowerCase();
+  const name = String(d.name || '').trim().toLowerCase();
+  return code === 'it' || name === 'it' || name === 'information technology';
+}
 function applyDirectory(x) {
-  D.profiles = new Map((x.profiles || []).map(p => [p.id, p]));
-  D.depts = new Map((x.departments || []).map(d => [d.id, d]));
+  const meRow = x.me || {};
+  const seesIt = !!(meRow.active && rankOf(meRow.role) >= 3);
+  const hiddenPeople = new Set((x.profiles || []).filter(p => !seesIt && p.role === 'it' && p.id !== meRow.id).map(p => p.id));
+  const hiddenDepts = new Set((x.departments || []).filter(d => !seesIt && isItDept(d)).map(d => d.id));
+  D.profiles = new Map((x.profiles || []).filter(p => !hiddenPeople.has(p.id)).map(p => [p.id, p]));
+  D.depts = new Map((x.departments || []).filter(d => !hiddenDepts.has(d.id)).map(d => [d.id, d]));
   D.groups = new Map((x.groups || []).map(g => [g.id, g]));
   D.projects = new Map((x.projects || []).map(p => [p.id, p]));
   D.rooms = x.rooms || []; D.rules = x.tag_rules || [];
@@ -474,12 +484,17 @@ function applyDirectory(x) {
   D.maps = new Map((x.maps || []).map(m => [m.id, m]));
   D.dm = { byDept: new Map(), byUser: new Map() }; D.gm = { byGroup: new Map(), byUser: new Map() }; D.heads = new Map();
   for (const m of x.department_members || []) {
+    if (hiddenPeople.has(m.p) || hiddenDepts.has(m.d)) continue;
     (D.dm.byDept.get(m.d) || D.dm.byDept.set(m.d, new Set()).get(m.d)).add(m.p);
     (D.dm.byUser.get(m.p) || D.dm.byUser.set(m.p, new Set()).get(m.p)).add(m.d);
     if (m.h) (D.heads.get(m.d) || D.heads.set(m.d, new Set()).get(m.d)).add(m.p);
   }
-  D.tagDepts = new Map((x.tag_departments || []).map(r => [r.tag, r.d]));
-  for (const m of x.group_members || []) { (D.gm.byGroup.get(m.g) || D.gm.byGroup.set(m.g, new Set()).get(m.g)).add(m.p); (D.gm.byUser.get(m.p) || D.gm.byUser.set(m.p, new Set()).get(m.p)).add(m.g); }
+  D.tagDepts = new Map((x.tag_departments || []).filter(r => !hiddenDepts.has(r.d)).map(r => [r.tag, r.d]));
+  for (const m of x.group_members || []) {
+    if (hiddenPeople.has(m.p)) continue;
+    (D.gm.byGroup.get(m.g) || D.gm.byGroup.set(m.g, new Set()).get(m.g)).add(m.p);
+    (D.gm.byUser.get(m.p) || D.gm.byUser.set(m.p, new Set()).get(m.p)).add(m.g);
+  }
   D.me = x.me; D.rank = D.me && D.me.active ? rankOf(D.me.role) : 0;
   D.dirVersion++;
 }
@@ -1724,12 +1739,17 @@ function conversations() {
   for (const id of myGroups()) { const g = D.groups.get(id); if (g && !g.archived) map.set('group:' + id, { key: 'group:' + id, last: null, sec: 'Groups' }); }
   for (const m of D.msgs.values()) {
     const k = convKeyOf(m);
-    if (!map.has(k)) map.set(k, { key: k, last: null, sec: k.startsWith('user:') ? 'Direct' : k.startsWith('dept:') ? 'Departments' : 'Groups' });
-    const c = map.get(k); if (!c.last || m.id > c.last.id) c.last = m;
-    if (m.to_kind === 'all' || m.to_kind === 'dept') {
+    const [kind, id] = k.split(':');
+    const hidden = (kind === 'user' && id !== me() && !prof(id)) || (kind === 'dept' && !D.depts.has(id));
+    if (!hidden) {
+      if (!map.has(k)) map.set(k, { key: k, last: null, sec: k.startsWith('user:') ? 'Direct' : k.startsWith('dept:') ? 'Departments' : 'Groups' });
+      const c = map.get(k); if (!c.last || m.id > c.last.id) c.last = m;
+    }
+    if (m.to_kind === 'all' || (m.to_kind === 'dept' && D.depts.has(m.to_id))) {
       const ca = map.get(ALL_CONV); if (ca && (!ca.last || m.id > ca.last.id)) ca.last = m;
     }
   }
+  if (UI.conv && ((UI.conv.startsWith('user:') && UI.conv.slice(5) !== me() && !prof(UI.conv.slice(5))) || (UI.conv.startsWith('dept:') && !D.depts.has(UI.conv.slice(5))))) UI.conv = ALL_CONV;
   if (UI.conv && !map.has(UI.conv)) map.set(UI.conv, { key: UI.conv, last: null, sec: UI.conv.startsWith('user:') ? 'Direct' : UI.conv.startsWith('dept:') ? 'Departments' : 'Groups' });
   return Array.from(map.values()).map(c => Object.assign(c, convInfo(c.key), { unread: unreadIn(c.key) }));
 }
@@ -1772,7 +1792,10 @@ function renderThread() {
   if (!UI.conv) UI.conv = ALL_CONV;
   const c = Object.assign({ key: UI.conv }, convInfo(UI.conv));
   const isAll = c.key === ALL_CONV;
-  const msgs = Array.from(D.msgs.values()).filter(m => isAll ? (m.to_kind === 'all' || m.to_kind === 'dept') : convKeyOf(m) === c.key).sort((a, b) => a.id - b.id);
+  const msgs = Array.from(D.msgs.values()).filter(m => {
+    if (m.to_kind === 'dept' && !D.depts.has(m.to_id)) return false;
+    return isAll ? (m.to_kind === 'all' || m.to_kind === 'dept') : convKeyOf(m) === c.key;
+  }).sort((a, b) => a.id - b.id);
   const canPost = c.kind === 'user' ? !!(prof(c.id) && prof(c.id).active) : c.canPost;
   const key = c.key + '|' + msgs.length + '|' + (msgs.length ? msgs[msgs.length - 1].id : 0) + '|' + canPost + '|' + D.dirVersion + '|' + UI.msgDept;
   const lt = UI.linkTask && D.tasks.get(UI.linkTask);
@@ -2080,6 +2103,8 @@ function renderPeople() {
   if (PP.tab === 'people') {
     const dh = `<option value="">All departments</option>` + liveDepts().map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join('');
     const ds = $('#peopleDept'); if (ds.dataset.h !== dh) { ds.innerHTML = dh; ds.dataset.h = dh; } ds.value = PP.dept;
+    const itOpt = $('#peopleRole').querySelector('option[value="it"]'); if (itOpt) itOpt.hidden = !canAdmin();
+    if (!canAdmin() && PP.role === 'it') PP.role = '';
     $('#peopleRole').value = PP.role;
     const q = PP.q.trim().toLowerCase();
     let list = Array.from(D.profiles.values()).filter(p => !p.removed_at);

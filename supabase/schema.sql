@@ -412,15 +412,29 @@ begin
   return false;
 end $$;
 
--- Messages: everyone/department threads are readable by all active staff; direct messages by sender/recipient; group threads by members.
+-- The IT department (name or code IT) is only for admin and IT.
+create or replace function public.wtm__it_dept(p uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from departments d
+    where d.id = p
+      and (lower(btrim(coalesce(d.code, ''))) = 'it'
+        or lower(btrim(d.name)) in ('it', 'information technology')))
+$$;
+
+-- Messages: everyone threads are readable by all active staff. The IT department and direct
+-- messages with IT are readable by admin and IT only. Other departments are readable by all.
+-- Group threads are readable by members.
 create or replace function public.wtm_can_see_message(p_sender uuid, p_kind text, p_to uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select public.wtm_my_rank() > 0 and (
-       p_sender = auth.uid()
-    or p_kind = 'all'
-    or p_kind = 'dept'
-    or (p_kind = 'user'  and p_to = auth.uid())
-    or (p_kind = 'group' and p_to = any(public.wtm_my_groups())))
+       p_kind = 'all'
+    or (p_kind = 'dept' and (public.wtm_my_rank() >= 3 or not public.wtm__it_dept(p_to)))
+    or (p_kind = 'user' and (p_sender = auth.uid() or p_to = auth.uid())
+        and (public.wtm_my_rank() >= 3 or not exists (
+              select 1 from profiles pr
+              where pr.role = 'it' and pr.id in (p_sender, p_to) and pr.id <> auth.uid())))
+    or (p_kind = 'group' and (p_sender = auth.uid() or p_to = any(public.wtm_my_groups()))))
 $$;
 
 -- Can p_caller manage logins for p_target / hand out p_role?
@@ -647,12 +661,22 @@ language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
     'profiles', coalesce((select jsonb_agg(jsonb_build_object(
         'id', p.id, 'email', p.email, 'full_name', p.full_name, 'short_name', p.short_name, 'title', p.title,
-        'role', p.role, 'active', p.active, 'removed_at', p.removed_at, 'created_at', p.created_at) order by p.full_name) from profiles p), '[]'::jsonb),
-    'departments', coalesce((select jsonb_agg(to_jsonb(d) order by d.name) from departments d), '[]'::jsonb),
-    'department_members', coalesce((select jsonb_agg(jsonb_build_object('d', department_id, 'p', profile_id, 'h', head)) from department_members), '[]'::jsonb),
-    'tag_departments', coalesce((select jsonb_agg(jsonb_build_object('tag', tag, 'd', department_id) order by tag) from tag_departments), '[]'::jsonb),
+        'role', p.role, 'active', p.active, 'removed_at', p.removed_at, 'created_at', p.created_at) order by p.full_name)
+        from profiles p
+        where public.wtm_my_rank() >= 3 or p.role <> 'it' or p.id = auth.uid()), '[]'::jsonb),
+    'departments', coalesce((select jsonb_agg(to_jsonb(d) order by d.name) from departments d
+        where public.wtm_my_rank() >= 3 or not public.wtm__it_dept(d.id)), '[]'::jsonb),
+    'department_members', coalesce((select jsonb_agg(jsonb_build_object('d', dm.department_id, 'p', dm.profile_id, 'h', dm.head))
+        from department_members dm
+        where (public.wtm_my_rank() >= 3 or not public.wtm__it_dept(dm.department_id))
+          and (public.wtm_my_rank() >= 3 or not exists (select 1 from profiles p where p.id = dm.profile_id and p.role = 'it' and p.id <> auth.uid()))), '[]'::jsonb),
+    'tag_departments', coalesce((select jsonb_agg(jsonb_build_object('tag', td.tag, 'd', td.department_id) order by td.tag)
+        from tag_departments td
+        where public.wtm_my_rank() >= 3 or not public.wtm__it_dept(td.department_id)), '[]'::jsonb),
     'groups', coalesce((select jsonb_agg(to_jsonb(g) order by g.name) from groups g), '[]'::jsonb),
-    'group_members', coalesce((select jsonb_agg(jsonb_build_object('g', group_id, 'p', profile_id)) from group_members), '[]'::jsonb),
+    'group_members', coalesce((select jsonb_agg(jsonb_build_object('g', gm.group_id, 'p', gm.profile_id))
+        from group_members gm
+        where public.wtm_my_rank() >= 3 or not exists (select 1 from profiles p where p.id = gm.profile_id and p.role = 'it' and p.id <> auth.uid())), '[]'::jsonb),
     'projects', coalesce((select jsonb_agg(to_jsonb(x) order by x.name) from projects x), '[]'::jsonb),
     'rooms', coalesce((select jsonb_agg(to_jsonb(x) order by x.name) from rooms x), '[]'::jsonb),
     'locations', coalesce((select jsonb_agg(to_jsonb(x) order by x.name) from locations x), '[]'::jsonb),
@@ -1024,8 +1048,10 @@ begin
     target := '00000000-0000-0000-0000-000000000000'::uuid;
   elsif k = 'user' then
     perform public.wtm__require(target <> me and exists (select 1 from profiles where id = target and active), 'That person can''t receive messages.');
+    perform public.wtm__require(r >= 3 or not exists (select 1 from profiles where id = target and role = 'it'), 'IT is only available to admin.');
   elsif k = 'dept' then
     perform public.wtm__require(exists (select 1 from departments where id = target and not archived), 'That department isn''t available.');
+    perform public.wtm__require(r >= 3 or not public.wtm__it_dept(target), 'IT is only available to admin.');
   elsif k = 'group' then
     perform public.wtm__require(exists (select 1 from groups where id = target and not archived)
       and target = any(public.wtm_my_groups()), 'You can only message groups you belong to.');
@@ -2014,15 +2040,29 @@ alter table public.orders             enable row level security;
 alter table public.calendar_entries   enable row level security;
 
 drop policy if exists wtm_read on public.profiles;
-create policy wtm_read on public.profiles for select to authenticated using (public.wtm_my_rank() > 0);
+create policy wtm_read on public.profiles for select to authenticated using (
+  public.wtm_my_rank() > 0
+  and (public.wtm_my_rank() >= 3 or role <> 'it' or id = auth.uid()));
 drop policy if exists wtm_read on public.departments;
-create policy wtm_read on public.departments for select to authenticated using (public.wtm_my_rank() > 0);
+create policy wtm_read on public.departments for select to authenticated using (
+  public.wtm_my_rank() > 0
+  and (public.wtm_my_rank() >= 3
+    or (lower(btrim(coalesce(code, ''))) <> 'it' and lower(btrim(name)) not in ('it', 'information technology'))));
 drop policy if exists wtm_read on public.department_members;
-create policy wtm_read on public.department_members for select to authenticated using (public.wtm_my_rank() > 0);
+create policy wtm_read on public.department_members for select to authenticated using (
+  public.wtm_my_rank() > 0
+  and (public.wtm_my_rank() >= 3 or not exists (
+        select 1 from departments d where d.id = department_id
+          and (lower(btrim(coalesce(d.code, ''))) = 'it' or lower(btrim(d.name)) in ('it', 'information technology'))))
+  and (public.wtm_my_rank() >= 3 or not exists (
+        select 1 from profiles p where p.id = profile_id and p.role = 'it' and p.id <> auth.uid())));
 drop policy if exists wtm_read on public.groups;
 create policy wtm_read on public.groups for select to authenticated using (public.wtm_my_rank() > 0);
 drop policy if exists wtm_read on public.group_members;
-create policy wtm_read on public.group_members for select to authenticated using (public.wtm_my_rank() > 0);
+create policy wtm_read on public.group_members for select to authenticated using (
+  public.wtm_my_rank() > 0
+  and (public.wtm_my_rank() >= 3 or not exists (
+        select 1 from profiles p where p.id = profile_id and p.role = 'it' and p.id <> auth.uid())));
 drop policy if exists wtm_read on public.projects;
 create policy wtm_read on public.projects for select to authenticated using (public.wtm_my_rank() > 0);
 drop policy if exists wtm_read on public.rooms;
@@ -2030,7 +2070,11 @@ create policy wtm_read on public.rooms for select to authenticated using (public
 drop policy if exists wtm_read on public.tag_rules;
 create policy wtm_read on public.tag_rules for select to authenticated using (public.wtm_my_rank() > 0);
 drop policy if exists wtm_read on public.tag_departments;
-create policy wtm_read on public.tag_departments for select to authenticated using (public.wtm_my_rank() > 0);
+create policy wtm_read on public.tag_departments for select to authenticated using (
+  public.wtm_my_rank() > 0
+  and (public.wtm_my_rank() >= 3 or not exists (
+        select 1 from departments d where d.id = department_id
+          and (lower(btrim(coalesce(d.code, ''))) = 'it' or lower(btrim(d.name)) in ('it', 'information technology')))));
 drop policy if exists wtm_read on public.tasks;
 create policy wtm_read on public.tasks for select to authenticated using (public.wtm_can_see_task(id));
 drop policy if exists wtm_read on public.task_assignees;

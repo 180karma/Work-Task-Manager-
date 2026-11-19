@@ -4,7 +4,7 @@
 /* ================= connection =================
    URL and anon key are injected by js/config.js (generated from .env). */
 const injected = window.WTM_CONFIG || {};
-const CONFIG = { url: injected.url || '', anonKey: injected.anonKey || '', invoicesUrl: injected.invoicesUrl || '' };
+const CONFIG = { url: injected.url || '', anonKey: injected.anonKey || '', invoicesUrl: injected.invoicesUrl ?? 'invoices/invoice_scraper.html' };
 
 /* ================= utilities ================= */
 const $ = (s, r = document) => r.querySelector(s);
@@ -2730,7 +2730,8 @@ function renderOrderLink() {
   const t = OL.task && D.tasks.get(OL.task);
   el.innerHTML = t && !t.deleted_at ? `<span class="dchip">${icon('link')}<span class="lbltxt">For ${esc(trunc(t.title, 42))}</span><button type="button" class="x" data-order-unlink aria-label="Remove the task link">${icon('close', 'width:13px;height:13px')}</button></span>` : '';
 }
-// The scraper keeps its own sign-in; the frame loads on first visit and stays loaded so a scan survives switching views.
+// The Invoice Scraper ships in invoices/ and is served from WTM's own address. It still keeps its own sign-in and
+// Supabase project. The frame loads on first visit and stays loaded so a scan survives switching views.
 function renderInvoices() {
   const url = CONFIG.invoicesUrl, f = $('#invFrame');
   $('#invNone').hidden = !!url; $('#invOpen').hidden = f.hidden = !url;
@@ -3260,6 +3261,9 @@ function setView(v, initial) {
   if (!['tasks', 'messages', 'mail', 'board', 'orders', 'invoices', 'daily', 'calendar', 'handover', 'log', 'people', 'settings'].includes(v)) v = 'tasks';
   UI.view = v; LS.set('wtm.view', v);
   for (const k of ['tasks', 'messages', 'mail', 'board', 'orders', 'invoices', 'daily', 'calendar', 'handover', 'log', 'people', 'settings']) $('#view-' + k).hidden = k !== v;
+  // Focus left in a hidden section (the scraper frame focuses its sign-in field) would swallow WTM's shortcuts.
+  const focused = document.activeElement;
+  if (focused && focused !== document.body && focused.closest && focused.closest('main section[hidden]')) { focused.blur(); window.focus(); }
   try { if (location.hash.slice(1) !== v) history.replaceState(null, '', '#' + v); } catch (_) {}
   closePop(); closeQaMenu(); closeMention(); closeConvMenu();
   renderNow();

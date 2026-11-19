@@ -14,6 +14,7 @@ WTM is one HTML file plus a Supabase project. Setup takes about ten minutes.
 | `supabase/schema.sql` | Tables, permissions, the log book and every server function. Run once. |
 | `supabase/seed.sql` | Optional starter departments, rooms, keywords and projects. |
 | `supabase/functions/wtm-admin/index.ts` | Edge Function that creates logins and resets passwords. |
+| `invoices/` | The Invoice Scraper, shown under **Invoices**. See [Invoices](#invoices). |
 | `js/mail/relay-mail.js` | The Mail section, built from `src/mail/`. Committed, so hosting WTM still needs no build step. |
 | `src/mail/` | Source of the Mail section (React + TypeScript). See `src/mail/README.md`. |
 | `package.json`, `vite.config.ts`, `tests/` | Only for working on Mail and running the browser tests. Not needed to host WTM. |
@@ -81,9 +82,21 @@ Sign in as IT, then:
 
 ## Invoices
 
-**Invoices** shows the [Invoice Scraper](https://github.com/180karma/Invoice_scraper) inside WTM. It is a separate app with its own Supabase project and its own username sign-in, so people sign in to it once inside WTM. WTM roles don't apply there. **Open in a new tab** opens the scraper on its own.
+**Invoices** (shortcut `I`) is the Invoice Scraper. Its code lives in `invoices/` and is served from WTM's own address, so hosting WTM hosts the scraper too. **Open in a new tab** opens it on its own.
 
-The address comes from `INVOICE_SCRAPER_URL` in `.env` (default `https://180karma.github.io/Invoice_scraper/`). Run `node scripts/sync-config.mjs` after changing it.
+It still has its own Supabase project and its own username sign-in, so people sign in to it once inside WTM, and WTM roles don't apply there. Its setup (database script, the `gemini-extract` and `staff-admin` functions, the Gemini key, admin usernames) is in `invoices/README.md`; those steps run against the scraper's project, not WTM's.
+
+One extra step for its "email me a sign-in link" option: in the **scraper's** Supabase project, add WTM's address followed by `invoices/**` (for example `https://wtm.example.com/invoices/**`) under **Authentication → URL Configuration → Redirect URLs**.
+
+To use a copy hosted elsewhere instead, set `INVOICE_SCRAPER_URL` in `.env` and run `node scripts/sync-config.mjs`. Set it empty to hide Invoices.
+
+**Updating the scraper.** `invoices/` is a squashed `git subtree` of [180karma/Invoice_scraper](https://github.com/180karma/Invoice_scraper). To bring in its latest changes:
+
+```bash
+git subtree pull --prefix=invoices https://github.com/180karma/Invoice_scraper.git main --squash
+```
+
+Workflows under `invoices/.github/` don't run from here; they are kept so the folder stays identical to that repository.
 
 ## Mail
 

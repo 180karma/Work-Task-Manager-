@@ -247,7 +247,7 @@
       <div class="orders" id="orderOut"></div>
     </section>
 
-    <!-- INVOICES (the Invoice Scraper, with its own sign-in and Supabase project) -->
+    <!-- INVOICES (the Invoice Scraper from invoices/, with its own sign-in and Supabase project) -->
     <section id="view-invoices" aria-labelledby="h-invoices" hidden>
       <div class="viewhead"><h1 id="h-invoices">Invoices</h1><a class="btn ghost" id="invOpen" target="_blank" rel="noopener"><svg class="ico" viewBox="0 0 24 24"><path d="M13.5 4.5h6v6M19.5 4.5 11 13M17 14v5.5H4.5V7H10"/></svg>Open in a new tab</a></div>
       <p class="muted" id="invNone" hidden>The invoice scraper address isn't set. Add <code>INVOICE_SCRAPER_URL</code> to <code>.env</code> and run <code>node scripts/sync-config.mjs</code>.</p>

@@ -87,7 +87,7 @@ for (const vp of VIEWPORTS) {
   await page.route(/^https?:/, (r) => {
     const url = r.request().url();
     if (url.startsWith(base)) {
-      if (url.includes('/js/config.js')) return r.fulfill({ contentType: 'text/javascript', body: 'window.WTM_CONFIG = { url: "https://example.supabase.co", anonKey: "anon", invoicesUrl: "about:blank" };' });
+      if (url.includes('/js/config.js')) return r.fulfill({ contentType: 'text/javascript', body: 'window.WTM_CONFIG = { url: "https://example.supabase.co", anonKey: "anon" };' });
       return r.continue();
     }
     if (url === WTM_SUPABASE_JS) return r.fulfill({ contentType: 'text/javascript', body: FAKE_SUPABASE });
@@ -106,6 +106,21 @@ for (const vp of VIEWPORTS) {
     await page.locator('#app').waitFor({ state: 'visible', timeout: 5000 });
     for (const v of WTM_VIEWS) await goto(v);
     expect(errors.length === 0, errors.join(' | '));
+  });
+
+  await check('Invoices shows the scraper from WTM\'s own address', async () => {
+    await goto('invoices');
+    const src = await page.locator('#invFrame').evaluate((f) => f.src);
+    expect(src === base + 'invoices/invoice_scraper.html', `frame src is ${src}`);
+    const frame = page.frameLocator('#invFrame');
+    await frame.locator('body').waitFor({ timeout: 5000 });
+    const title = await page.locator('#invFrame').evaluate((f) => f.contentDocument && f.contentDocument.title);
+    expect(/invoice/i.test(title || ''), `scraper did not load (title ${title})`);
+    expect((await page.locator('#invOpen').getAttribute('href')) === 'invoices/invoice_scraper.html', 'Open in a new tab link is wrong');
+    if (shots) await page.screenshot({ path: resolve(shots, `invoices-${vp.name}.png`) });
+    await goto('tasks');
+    await page.keyboard.press('b');
+    await page.locator('#view-board').waitFor({ state: 'visible', timeout: 2000 });
   });
 
   await check('Mail is in the WTM navigation and opens on E', async () => {

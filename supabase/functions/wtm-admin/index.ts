@@ -31,6 +31,13 @@ function tempPassword(): string {
 
 const ROLES = ["staff", "supervisor", "admin", "it"];
 
+// Supabase sign-in still needs an email. The person never sees this address;
+// they sign in with their user name, and the app looks the address up.
+function authEmailFor(username: string): string {
+  const slug = username.trim().toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, ".").replace(/^\.+|\.+$/g, "");
+  return (slug || "user") + "@users.wtm.invalid";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return reply({ error: "Use POST." }, 405);
@@ -56,17 +63,22 @@ Deno.serve(async (req) => {
   try {
     switch (body.action) {
       case "create_user": {
-        const email = String(body.email ?? "").trim().toLowerCase();
+        const username = String(body.username ?? "").trim();
+        const email = String(body.email ?? "").trim();
         const role = String(body.role ?? "staff");
-        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return reply({ error: "Enter a valid email address." }, 400);
+        if (!username || username.length > 40 || username.includes("@")) return reply({ error: "Enter a user name without @." }, 400);
+        if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return reply({ error: "Enter a valid email address, or leave it blank." }, 400);
         if (!ROLES.includes(role)) return reply({ error: "Choose a role." }, 400);
         const chk = await admin.rpc("wtm_svc_check", { p_caller: callerId, p_target: null, p_role: role });
         if (chk.error) return reply({ error: chk.error.message }, 403);
 
         const password = typeof body.password === "string" && body.password.length >= 8 ? body.password : tempPassword();
         const created = await admin.auth.admin.createUser({
-          email, password, email_confirm: true,
-          user_metadata: { full_name: String(body.full_name ?? "") },
+          email: authEmailFor(username), password, email_confirm: true,
+          user_metadata: {
+            username, full_name: String(body.full_name ?? username),
+            phone: String(body.phone ?? ""), emoji: String(body.emoji ?? ""),
+          },
         });
         if (created.error || !created.data.user) {
           return reply({ error: created.error?.message ?? "Couldn't create that login." }, 400);
@@ -74,7 +86,8 @@ Deno.serve(async (req) => {
         const after = await admin.rpc("wtm_svc_after_create", {
           p_caller: callerId, p_user: created.data.user.id,
           p: {
-            full_name: body.full_name ?? "", short_name: body.short_name ?? "", title: body.title ?? "",
+            username, full_name: body.full_name ?? username, short_name: body.short_name ?? "", title: body.title ?? "",
+            email, phone: body.phone ?? "", emoji: body.emoji ?? "",
             role, departments: Array.isArray(body.departments) ? body.departments : [],
           },
         });

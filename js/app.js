@@ -192,8 +192,18 @@ const prof = id => D.profiles.get(id);
 const nameOf = id => { const p = prof(id); return p ? (p.full_name || p.email) : 'Someone'; };
 const shortOf = id => { const p = prof(id); return p ? (p.short_name || (p.full_name || p.email).split(/\s+/)[0]) : 'Someone'; };
 const whoLabel = id => id && id === me() ? 'You' : id ? nameOf(id) : '—';
-function initials(p) { const n = (p && (p.full_name || p.email) || '?').trim().split(/[\s@.]+/).filter(Boolean); return ((n[0] || '?')[0] + (n.length > 1 ? n[n.length - 1][0] : '')).toUpperCase(); }
-const avatar = (id, cls = '') => { const p = prof(id); return `<span class="av ${cls}" style="--ac:var(--${hashColor(id)})" title="${esc(p ? p.full_name || p.email : '')}" aria-hidden="true">${esc(initials(p))}</span>`; };
+function initials(p) { const n = (p && (p.full_name || p.username || p.email) || '?').trim().split(/[\s@.]+/).filter(Boolean); return ((n[0] || '?')[0] + (n.length > 1 ? n[n.length - 1][0] : '')).toUpperCase(); }
+const FACES = ['😀','😄','😁','😊','😉','😎','🤓','🧐','🤠','🥳','😇','🤗','🤔','😴','😬','😤','🤯','👷','🧑‍🍳','🧑‍🔧','🧑‍💼','🧑‍💻','👮','🦸','🧙','🐱','🐶','🦊','🐻','🐼','🐸','🐧','🦄','🌸','⭐','🔥','🌊','🍀','🔧','🧹','🍳','💻','🛎️','🛏️','🏠'];
+function emojiPickerHtml(id, cur) {
+  const curI = FACES.indexOf(cur || '');
+  return `<div class="faces" id="${id}" role="radiogroup" aria-label="Profile picture">${FACES.map((e, i) => `<button type="button" data-face="${i}" aria-pressed="${i === curI}" aria-label="Picture ${i + 1}">${e}</button>`).join('')}<button type="button" data-face="-1" aria-pressed="${curI < 0}" aria-label="Use initials">Aa</button></div>`;
+}
+function pickedEmoji(id) {
+  const b = document.querySelector(`#${id} button[aria-pressed="true"]`);
+  if (!b || b.dataset.face === '-1') return '';
+  return FACES[+b.dataset.face] || '';
+}
+const avatar = (id, cls = '') => { const p = prof(id); const face = p && p.emoji; return `<span class="av ${cls}${face ? ' emoji' : ''}" style="--ac:var(--${hashColor(id)})" title="${esc(p ? p.full_name || p.username || p.email : '')}" aria-hidden="true">${face ? esc(face) : esc(initials(p))}</span>`; };
 const activePeople = () => Array.from(D.profiles.values()).filter(p => p.active).sort((a, b) => cmpStr(a.full_name || a.email, b.full_name || b.email));
 const liveDepts = () => Array.from(D.depts.values()).filter(d => !d.archived).sort((a, b) => cmpStr(a.name, b.name));
 const liveGroups = () => Array.from(D.groups.values()).filter(g => !g.archived).sort((a, b) => cmpStr(a.name, b.name));
@@ -584,7 +594,7 @@ function showLogin(msg) {
   D.ready = false; unsubscribe();
   showScreen(`<div class="card">${brandBlock}
     <form id="loginForm">
-      <label class="fld"><span class="lbl">Email</span><input class="field" id="loginEmail" type="email" autocomplete="username" required></label>
+      <label class="fld"><span class="lbl">User name</span><input class="field" id="loginUser" type="text" autocomplete="username" required></label>
       <label class="fld"><span class="lbl">Password</span><input class="field" id="loginPw" type="password" autocomplete="current-password" required></label>
       <div class="formerr" role="alert">${esc(msg || '')}</div>
       <button class="btn primary" type="submit" id="loginBtn">Sign in</button>
@@ -594,10 +604,14 @@ function showLogin(msg) {
   $('#loginForm').addEventListener('submit', async e => {
     e.preventDefault();
     const btn = $('#loginBtn'); btn.disabled = true; btn.textContent = 'Signing in…';
-    const { error } = await sb.auth.signInWithPassword({ email: $('#loginEmail').value.trim(), password: $('#loginPw').value });
-    if (error) {
+    const username = $('#loginUser').value.trim();
+    const looked = await sb.rpc('wtm_login_email', { p_username: username });
+    const authEmail = looked && looked.data;
+    const { error } = authEmail ? await sb.auth.signInWithPassword({ email: authEmail, password: $('#loginPw').value }) : { error: { message: 'Invalid login credentials' } };
+    if (error || looked.error) {
       btn.disabled = false; btn.textContent = 'Sign in';
-      $('.formerr').textContent = /invalid/i.test(error.message) ? 'That email and password don\'t match.' : /banned|disabled/i.test(error.message) ? 'This login is turned off. Contact IT.' : error.message;
+      const message = (error && error.message) || (looked.error && looked.error.message) || '';
+      $('.formerr').textContent = /invalid/i.test(message) ? 'That user name and password don\'t match.' : /banned|disabled/i.test(message) ? 'This login is turned off. Contact IT.' : message;
       return;
     }
     start();
@@ -650,9 +664,9 @@ async function signOut() {
 function openAccount(anchor) {
   const m = D.me || {};
   openPicker(anchor, {
-    title: m.full_name || m.email || 'Account',
+    title: m.username || m.full_name || 'Account',
     sections: [{ items: [
-      { key: 'settings', label: 'Settings', sub: [m.email, (ROLE[m.role] || {}).label].filter(Boolean).join(' · '), lead: m.id ? avatar(m.id) : '' },
+      { key: 'settings', label: 'Settings', sub: [m.username || m.full_name, (ROLE[m.role] || {}).label].filter(Boolean).join(' · '), lead: m.id ? avatar(m.id) : '' },
       { key: 'out', label: 'Log out', sub: 'End this session on this device' }
     ] }],
     onPick(it) {
@@ -2110,7 +2124,7 @@ function renderPeople() {
     let list = Array.from(D.profiles.values()).filter(p => !p.removed_at);
     if (PP.role === 'off') list = list.filter(p => !p.active); else { if (!canAdmin()) list = list.filter(p => p.active); if (PP.role) list = list.filter(p => p.role === PP.role); }
     if (PP.dept) list = list.filter(p => deptsOf(p.id).has(PP.dept));
-    if (q) list = list.filter(p => [p.full_name, p.short_name, p.email, p.title].join(' ').toLowerCase().includes(q));
+    if (q) list = list.filter(p => [p.full_name, p.short_name, p.username, p.phone, p.email, p.title].join(' ').toLowerCase().includes(q));
     list.sort((a, b) => (b.active - a.active) || cmpStr(a.full_name || a.email, b.full_name || b.email));
     out.innerHTML = list.length ? `<ul class="plist2">${list.map(p => `<li><button type="button" class="prow2${p.active ? '' : ' off'}" data-person="${esc(p.id)}">${avatar(p.id)}<span class="nm">${esc(p.full_name || p.email)}${p.short_name ? `<small>“${esc(p.short_name)}”</small>` : ''}${p.id === me() ? '<small>you</small>' : ''}</span>
       <span class="side2"><span class="rolepill ${esc(p.role)}">${esc((ROLE[p.role] || {}).label || p.role)}</span>${p.active ? '' : '<span class="rolepill off">Off</span>'}</span>
@@ -2138,15 +2152,19 @@ function personSheet(id) {
   const groupsList = Array.from(groupsOf(id)).map(g => D.groups.get(g)).filter(g => g && !g.archived).map(g => g.name);
   openSheet({
     kind: 'person', armed: false,
-    html: () => `${sheetHead('Person', p.email)}
+    html: () => `${sheetHead('Person', p.username || p.full_name || p.email)}
       <div class="sh-body">
-        <div class="profile-head">${avatar(id, 'lg')}<div><b>${esc(p.full_name || p.email)}</b><span class="muted">${esc([p.title, (ROLE[p.role] || {}).label].filter(Boolean).join(' · '))}</span></div></div>
+        <div class="profile-head">${avatar(id, 'lg')}<div><b>${esc(p.full_name || p.username || p.email)}</b><span class="muted">${esc([p.title, (ROLE[p.role] || {}).label].filter(Boolean).join(' · '))}</span></div></div>
         <div class="row">${id !== me() && p.active ? `<button type="button" class="btn" data-sh="dm">${icon('msg')}Message</button>` : ''}${p.active ? `<button type="button" class="btn" data-sh="assign-task">${I.plus}New task for ${esc(shortOf(id))}</button>` : ''}<button type="button" class="btn ghost" data-sh="their-tasks">See their tasks</button></div>
-        <dl class="kv"><dt>Email</dt><dd style="user-select:all">${esc(p.email)}</dd><dt>Departments</dt><dd>${esc(deptNames(id).join(', ') || '—')}</dd><dt>Groups</dt><dd>${esc(groupsList.join(', ') || '—')}</dd><dt>Role</dt><dd>${esc((ROLE[p.role] || {}).label || p.role)} · this is their access, not their job title</dd>${p.short_name ? `<dt>Known as</dt><dd>${esc(p.short_name)} · picked up when typed in a task</dd>` : ''}</dl>
+        <dl class="kv"><dt>User name</dt><dd style="user-select:all">${esc(p.username || '—')}</dd><dt>Phone</dt><dd>${esc(p.phone || '—')}</dd><dt>Email</dt><dd style="user-select:all">${esc(p.email || '—')}</dd><dt>Departments</dt><dd>${esc(deptNames(id).join(', ') || '—')}</dd><dt>Groups</dt><dd>${esc(groupsList.join(', ') || '—')}</dd><dt>Role</dt><dd>${esc((ROLE[p.role] || {}).label || p.role)} · this is their access, not their job title</dd>${p.short_name ? `<dt>Known as</dt><dd>${esc(p.short_name)} · picked up when typed in a task</dd>` : ''}</dl>
         ${editName ? `<hr style="border:0;border-top:1px solid var(--line);width:100%;margin:0">
         <h2>${manage ? 'Name and login' : 'Your name'}</h2>
+        <div class="fld"><span class="lbl">Profile picture</span>${emojiPickerHtml('pf-face', p.emoji || '')}</div>
         <div class="fgrid">
+          ${manage ? `<label class="fld"><span class="lbl">User name</span><input class="field" id="pf-user" maxlength="40" value="${esc(p.username)}" required></label>` : ''}
           <label class="fld"><span class="lbl">Full name</span><input class="field" id="pf-name" maxlength="80" value="${esc(p.full_name)}"></label>
+          <label class="fld"><span class="lbl">Phone</span><input class="field" id="pf-phone" type="tel" maxlength="40" value="${esc(p.phone || '')}" placeholder="e.g. 0412 345 678"></label>
+          <label class="fld"><span class="lbl">Email</span><input class="field" id="pf-email" type="email" maxlength="120" value="${esc(p.email || '')}" placeholder="Optional contact email"></label>
           <label class="fld"><span class="lbl">Known as</span><input class="field" id="pf-short" maxlength="40" value="${esc(p.short_name)}" placeholder="e.g. Sam"></label>
           <label class="fld"><span class="lbl">Job title</span><input class="field" id="pf-title" maxlength="80" value="${esc(p.title)}" placeholder="e.g. Department head"></label>
           ${manage ? `<label class="fld"><span class="lbl">Role</span><select class="field" id="pf-role"${id === me() ? ' disabled' : ''}>${(roleChoices().includes(p.role) ? roleChoices() : [p.role].concat(roleChoices())).map(r => `<option value="${r}"${r === p.role ? ' selected' : ''}>${ROLE[r].label}</option>`).join('')}</select></label>` : ''}
@@ -2169,7 +2187,7 @@ function personSheet(id) {
         b.disabled = true;
         const r = await adminFn({ action: 'reset_password', user_id: id });
         b.disabled = false; sheet.armed = false; b.textContent = 'Reset password'; b.classList.remove('danger', 'armed');
-        if (r) $('#pf-pw').innerHTML = pwBox(p.email, r.password);
+        if (r) $('#pf-pw').innerHTML = pwBox(p.username || p.full_name, r.password);
       }
       else if (k === 'delete') {
         if (!sheet.delArmed) { sheet.delArmed = true; b.textContent = 'Tap again to delete'; b.classList.add('armed'); return; }
@@ -2179,7 +2197,8 @@ function personSheet(id) {
         else { b.disabled = false; sheet.delArmed = false; b.textContent = 'Delete account'; b.classList.remove('armed'); }
       }
       else if (k === 'save') {
-        const body = { full_name: $('#pf-name').value.trim(), short_name: $('#pf-short').value.trim(), title: $('#pf-title').value.trim() };
+        const body = { full_name: $('#pf-name').value.trim(), short_name: $('#pf-short').value.trim(), title: $('#pf-title').value.trim(), phone: $('#pf-phone').value.trim(), email: $('#pf-email').value.trim(), emoji: pickedEmoji('pf-face') };
+        if ($('#pf-user')) body.username = $('#pf-user').value.trim();
         if ($('#pf-role') && id !== me() && $('#pf-role').value !== p.role) body.role = $('#pf-role').value;
         if ($('#pf-depts')) {
           const heads = $('#pf-heads') ? checked('pf-heads') : [];
@@ -2202,9 +2221,9 @@ function personSheet(id) {
     }
   });
 }
-function pwBox(email, password) {
-  return `<div class="pwbox"><span class="lbl">Temporary sign-in details</span><span>Email: <b style="user-select:all">${esc(email)}</b></span><span>Password:</span><code>${esc(password)}</code>
-    <div class="row"><button type="button" class="btn sm" data-copy="${esc('Email: ' + email + '\nTemporary password: ' + password)}">Copy both</button><span class="muted" style="font-size:12.5px">Shown once. They'll choose their own password when they sign in.</span></div></div>`;
+function pwBox(username, password) {
+  return `<div class="pwbox"><span class="lbl">Temporary sign-in details</span><span>User name: <b style="user-select:all">${esc(username)}</b></span><span>Password:</span><code>${esc(password)}</code>
+    <div class="row"><button type="button" class="btn sm" data-copy="${esc('User name: ' + username + '\nTemporary password: ' + password)}">Copy both</button><span class="muted" style="font-size:12.5px">Shown once. They'll choose their own password when they sign in.</span></div></div>`;
 }
 async function adminFn(body, quiet) {
   try {
@@ -2222,33 +2241,37 @@ async function adminFn(body, quiet) {
 }
 function addPersonSheet() {
   openSheet({
-    kind: 'add-person', focus: '#np-email',
+    kind: 'add-person', focus: '#np-user',
     html: () => `${sheetHead('Add person', 'Creates their login')}
       <div class="sh-body" id="np-body">
+        <div class="fld"><span class="lbl">Profile picture</span>${emojiPickerHtml('np-face', '')}</div>
         <div class="fgrid">
-          <label class="fld"><span class="lbl">Email</span><input class="field" id="np-email" type="email" maxlength="120" required></label>
-          <label class="fld"><span class="lbl">Full name</span><input class="field" id="np-name" maxlength="80" required></label>
+          <label class="fld"><span class="lbl">User name</span><input class="field" id="np-user" maxlength="40" required placeholder="e.g. Joe O"></label>
+          <label class="fld"><span class="lbl">Full name</span><input class="field" id="np-name" maxlength="80" placeholder="Leave blank to use the user name"></label>
+          <label class="fld"><span class="lbl">Phone</span><input class="field" id="np-phone" type="tel" maxlength="40" placeholder="e.g. 0412 345 678"></label>
+          <label class="fld"><span class="lbl">Email</span><input class="field" id="np-email" type="email" maxlength="120" placeholder="Optional contact email"></label>
           <label class="fld"><span class="lbl">Known as</span><input class="field" id="np-short" maxlength="40" placeholder="e.g. Sam"></label>
           <label class="fld"><span class="lbl">Job title</span><input class="field" id="np-title" maxlength="80"></label>
           <label class="fld"><span class="lbl">Role</span><select class="field" id="np-role">${roleChoices().map(r => `<option value="${r}"${r === 'staff' ? ' selected' : ''}>${ROLE[r].label}</option>`).join('')}</select></label>
           <label class="fld"><span class="lbl">Password</span><input class="field" id="np-pw" type="text" minlength="8" maxlength="72" placeholder="Leave blank to generate one" autocomplete="off"></label>
         </div>
-        <div class="fld"><span class="lbl">Departments</span>${liveDepts().length ? checklistHtml('np-depts', liveDepts().map(d => ({ id: d.id, label: d.name, sub: d.code })), new Set()) : '<p class="muted" style="margin:0">No departments yet. You can add them later.</p>'}</div>
-        <p class="muted" style="margin:0;font-size:13px">${D.rank === 4 ? 'IT can create any role.' : 'Admins can create supervisors and staff. Ask IT for admin or IT logins.'} New people choose their own password the first time they sign in.</p>
+        <div class="fld"><span class="lbl">Departments</span><p class="muted" style="margin:0 0 6px;font-size:13px">Tick every department this person belongs to.</p>${liveDepts().length ? checklistHtml('np-depts', liveDepts().map(d => ({ id: d.id, label: d.name, sub: d.code })), new Set()) : '<p class="muted" style="margin:0">No departments yet. You can add them later.</p>'}</div>
+        <p class="muted" style="margin:0;font-size:13px">${D.rank === 4 ? 'IT can create any role.' : 'Admins can create supervisors and staff. Ask IT for admin or IT logins.'} They sign in with the user name. New people choose their own password the first time they sign in.</p>
         <div id="np-done"></div>
       </div>
       <footer class="sh-foot"><span class="spacer"></span><button type="button" class="btn primary" data-sh="create">Create login</button></footer>`,
     click: async b => {
       if (b.dataset.sh !== 'create') return;
-      const email = $('#np-email').value.trim(), name = $('#np-name').value.trim();
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast('Enter a valid email address.'); $('#np-email').focus(); return; }
-      if (!name) { toast('Enter their full name.'); $('#np-name').focus(); return; }
+      const username = $('#np-user').value.trim(), email = $('#np-email').value.trim();
+      const name = $('#np-name').value.trim() || username;
+      if (!username || username.includes('@')) { toast('Enter a user name without @.'); $('#np-user').focus(); return; }
+      if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast('Enter a valid email address, or leave it blank.'); $('#np-email').focus(); return; }
       b.disabled = true; b.textContent = 'Creating…';
-      const r = await adminFn({ action: 'create_user', email, full_name: name, short_name: $('#np-short').value.trim(), title: $('#np-title').value.trim(), role: $('#np-role').value, password: $('#np-pw').value || undefined, departments: $('#np-depts') ? checked('np-depts') : [] });
+      const r = await adminFn({ action: 'create_user', username, full_name: name, email, phone: $('#np-phone').value.trim(), emoji: pickedEmoji('np-face'), short_name: $('#np-short').value.trim(), title: $('#np-title').value.trim(), role: $('#np-role').value, password: $('#np-pw').value || undefined, departments: $('#np-depts') ? checked('np-depts') : [] });
       b.disabled = false; b.textContent = 'Create login';
       if (r) {
-        $('#np-done').innerHTML = pwBox(email, r.password);
-        for (const el of $$('#np-body .fgrid input, #np-body .fgrid select, #np-depts input')) el.disabled = true;
+        $('#np-done').innerHTML = pwBox(username, r.password);
+        for (const el of $$('#np-body .fgrid input, #np-body .fgrid select, #np-depts input, #np-face button')) el.disabled = true;
         b.outerHTML = `<button type="button" class="btn primary" data-sh="close">Done</button>`;
         toast(`Login created for ${name}.`);
       }
@@ -2457,61 +2480,15 @@ function openKeywordLibrary(opener) {
 /* ================= settings view ================= */
 function renderSettings() {
   if ($('#settingsOut').contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
-  const m = D.me, sup = canSupervise();
-  const tryText = $('#tryIn') ? $('#tryIn').value : 'Fix the leak in Room 12 with Sam';
+  const m = D.me;
   $('#settingsOut').innerHTML = `
     <div class="panel">
       <h2>Your account</h2>
-      <div class="profile-head">${avatar(m.id, 'lg')}<div><b>${esc(m.full_name || m.email)}</b><span class="muted">${esc(m.email)}</span></div></div>
-      <dl class="kv"><dt>Role</dt><dd>${esc((ROLE[m.role] || {}).label)}</dd><dt>Departments</dt><dd>${esc(deptNames(m.id).join(', ') || '—')}</dd></dl>
+      <div class="profile-head">${avatar(m.id, 'lg')}<div><b>${esc(m.full_name || m.username || m.email)}</b><span class="muted">${esc(m.username || m.email || '')}</span></div></div>
+      <div class="fld"><span class="lbl">Profile picture</span>${emojiPickerHtml('me-face', m.emoji || '')}</div>
+      <dl class="kv"><dt>User name</dt><dd>${esc(m.username || '—')}</dd><dt>Phone</dt><dd>${esc(m.phone || '—')}</dd><dt>Email</dt><dd>${esc(m.email || '—')}</dd><dt>Role</dt><dd>${esc((ROLE[m.role] || {}).label)}</dd><dt>Departments</dt><dd>${esc(deptNames(m.id).join(', ') || '—')}</dd></dl>
       <div class="row"><button type="button" class="btn" data-act="change-pw">Change password</button><button type="button" class="btn ghost" data-act="sign-out">Log out</button></div>
-    </div>
-    <div class="panel">
-      <h2>Locations and maps</h2>
-      <p>Floor plans for dropping a pin on a task or a message. A photo can be added the same way. ${sup ? 'Supervisors, admin and IT add the locations and the map images.' : 'Ask a supervisor to add a location and its map.'}</p>
-      <ul class="mini-list">${liveLocations().map(l => {
-        const maps = liveMaps().filter(m => m.location_id === l.id);
-        return `<li class="loc"><div class="row" style="width:100%"><b class="grow">${esc(l.name)}</b>${sup ? `<button type="button" class="btn sm ghost" data-del-loc="${esc(l.id)}">Remove</button>` : ''}</div>
-          <ul class="mini-list">${maps.map(m => `<li>${m.image_path ? `<img class="shot sm" data-media="wtm-maps:${esc(m.image_path)}" alt="" hidden>` : ''}<span class="grow">${esc(m.name)}</span>${sup ? `<button type="button" class="btn sm ghost" data-del-map="${esc(m.id)}">Remove</button>` : ''}</li>`).join('') || '<li class="muted">No map yet.</li>'}</ul>
-          ${sup ? `<form class="row map-add" data-loc="${esc(l.id)}"><label class="sr" for="mn-${esc(l.id)}">Map name</label><input class="field" id="mn-${esc(l.id)}" name="mapName" maxlength="80" placeholder="Map name, e.g. Ground floor" style="flex:1 1 140px"><input class="field" type="file" name="mapFile" accept="image/jpeg,image/png,image/webp,image/gif" aria-label="Map image"><button class="btn" type="submit">Add map</button></form>` : ''}</li>`;
-      }).join('') || '<li class="muted">No locations yet.</li>'}</ul>
-      ${sup ? `<form class="row" id="locAdd"><label class="sr" for="locName">Location name</label><input class="field" id="locName" maxlength="80" placeholder="Location name, e.g. Main building" style="flex:1 1 160px"><button class="btn" type="submit">Add location</button></form><p>JPEG, PNG, WebP or GIF, up to 8 MB.</p>` : ''}
-    </div>
-    <div class="panel">
-      <h2>Auto-tagging</h2>
-      <p>As you type a task, WTM picks out people's names, departments, projects, rooms, floors and the keywords below, and tags the task for you. Most tags also tag a department. Plumbing tags Maintenance, so the task is assigned to that department. Room numbers and floors are found by pattern, such as “Room 12”, “Rm 4B”, “Ward 3”, “Level 2”, “2nd floor”, “L3” or “ground floor”.</p>
-      <div class="tryout"><label class="lbl" for="tryIn">Try it</label><input class="field" id="tryIn" value="${esc(tryText)}"><div class="chipline" id="tryOut"></div></div>
-      <h3>Rooms</h3>
-      <ul class="mini-list">${D.rooms.map(r => `<li>${icon('pin', 'color:var(--info)')}<span class="grow">${esc(r.name)}${r.aliases && r.aliases.length ? ` <small>also ${esc(r.aliases.join(', '))}</small>` : ''}</span>${sup ? `<button type="button" class="btn sm ghost" data-del-room="${esc(r.id)}">Remove</button>` : ''}</li>`).join('') || '<li class="muted">No named rooms yet.</li>'}</ul>
-      ${sup ? `<form class="row" id="roomAdd"><label class="sr" for="roomName">Room name</label><input class="field" id="roomName" maxlength="60" placeholder="Room name, e.g. Boardroom" style="flex:1 1 140px"><label class="sr" for="roomAlias">Other names</label><input class="field" id="roomAlias" maxlength="120" placeholder="Other names, comma separated" style="flex:1 1 160px"><button class="btn" type="submit">Add room</button></form>` : ''}
-      <h3>Keywords</h3>
-      <p>${D.rules.length} words across ${new Set(D.rules.map(r => r.tag)).size} tags. Many words can share one tag, and a task is tagged when its title contains one of those words.</p>
-      <button type="button" class="btn" data-act="keywords">Open keyword library</button>
-    </div>
-    <div class="panel">
-      <h2>Projects</h2>
-      <ul class="mini-list">${(sup ? Array.from(D.projects.values()) : liveProjects()).sort((a, b) => (a.archived - b.archived) || cmpStr(a.name, b.name)).map(p => `<li><i class="pdot" style="--pc:var(--${esc(p.color)})"></i><span class="grow">${esc(p.name)}${p.archived ? ' <small>archived</small>' : ''}</span><small>${esc(projectCounts(p.id))}</small>${sup ? `<select class="field" data-proj-owner="${esc(p.id)}" aria-label="Owner of ${esc(p.name)}"><option value="">No owner</option>${activePeople().map(u => `<option value="${esc(u.id)}"${u.id === p.owner_id ? ' selected' : ''}>${esc(u.full_name || u.email)}</option>`).join('')}</select><button type="button" class="btn sm ghost" data-proj-arch="${esc(p.id)}" data-arch="${!p.archived}">${p.archived ? 'Restore' : 'Archive'}</button>` : ''}</li>`).join('') || '<li class="muted">No projects yet.</li>'}</ul>
-      ${sup ? `<form class="row" id="projAdd"><label class="sr" for="projName">Project name</label><input class="field" id="projName" maxlength="60" placeholder="New project" style="flex:1 1 160px"><button class="btn" type="submit">Add project</button></form>` : '<p>Supervisors, admin and IT manage projects.</p>'}
-    </div>
-    <div class="panel">
-      <h2>Data</h2>
-      <p>The log book is permanent: entries can't be edited or removed by anyone, including IT. To correct something, write a new entry.</p>
-      <div class="row"><button type="button" class="btn" data-act="export">${icon('down', 'width:16px;height:16px')}Export what I can see (JSON)</button></div>
-      <p style="font-size:12.5px">Connected to <span class="mono" style="overflow-wrap:anywhere">${esc(config().url)}</span></p>
-    </div>
-    <div class="panel">
-      <h2>Quick add</h2>
-      <p>Use the buttons under the task box, or type these anywhere in a task:</p>
-      <dl class="kv">
-        <dt>@sam</dt><dd>Assign to a person, department or group</dd>
-        <dt>!1 … !4</dt><dd>Priority: P1 Critical, P2 High, P3 Normal, P4 Low</dd>
-        <dt>^fri</dt><dd>Due date: ^today, ^tom, ^mon–^sun, ^+3d or ^2026-11-02</dd>
-        <dt>#tag</dt><dd>Tag, as many as you like</dd>
-      </dl>
-      <h3>Keyboard</h3>
-      <dl class="kv"><dt>N</dt><dd>New task</dd><dt>/</dt><dd>Search this view</dd><dt>T D C H M B O L P S</dt><dd>Tasks, Daily, Calendar, Handover, Messages, Board, Orders, Log book, People, Settings</dd><dt>Esc</dt><dd>Close a panel</dd></dl>
     </div>`;
-  renderTry();
 }
 function renderTry() {
   const el = $('#tryOut'); if (!el) return;
@@ -3384,6 +3361,14 @@ function wire() {
   // settings
   $('#settingsOut').addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.face != null && b.closest('#me-face')) {
+      const emoji = b.dataset.face === '-1' ? '' : (FACES[+b.dataset.face] || '');
+      if ((D.me.emoji || '') === emoji) return;
+      for (const x of b.closest('.faces').querySelectorAll('button')) x.setAttribute('aria-pressed', String(x === b));
+      b.disabled = true;
+      await act('wtm_admin_update_user', { p_user: me(), p: { emoji } }, 'Picture saved.');
+      return;
+    }
     if (b.dataset.act === 'change-pw') showChangePassword(false);
     else if (b.dataset.act === 'sign-out') signOut();
     else if (b.dataset.act === 'export') exportJson();
@@ -3435,7 +3420,12 @@ function wire() {
     const x = e.target.closest('.dchip .x'); if (x && sheet.onRemove) { sheet.onRemove(x.closest('.dchip')); return; }
     const sg = e.target.closest('[data-sugg]'); if (sg && sheet.onSugg) { sheet.onSugg(sg.dataset.sugg); return; }
     const seg = e.target.closest('.seg button'); if (seg && !seg.hasAttribute('data-day') && sheet.onSeg) { sheet.onSeg(seg); return; }
-    const b = e.target.closest('[data-sh],[data-color],[data-day]'); if (!b) return;
+    const b = e.target.closest('[data-sh],[data-color],[data-day],[data-face]'); if (!b) return;
+    if (b.dataset.face != null) {
+      const box = b.closest('.faces');
+      if (box) for (const x of box.querySelectorAll('button')) x.setAttribute('aria-pressed', String(x === b));
+      return;
+    }
     if (b.dataset.sh === 'close') { closeSheet(false); return; }
     if (sheet.click) sheet.click(b, e);
   });

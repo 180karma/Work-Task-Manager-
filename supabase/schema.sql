@@ -36,7 +36,13 @@ create table if not exists public.profiles (
 );
 -- The login can be deleted while the profile row stays, so names remain on tasks and the log.
 alter table public.profiles add column if not exists removed_at timestamptz;
+alter table public.profiles add column if not exists username text not null default '';
+alter table public.profiles add column if not exists phone text not null default '';
+alter table public.profiles add column if not exists emoji text not null default '';
 alter table public.profiles drop constraint if exists profiles_id_fkey;
+create unique index if not exists profiles_username_lower_idx
+  on public.profiles (lower(username))
+  where removed_at is null and username <> '';
 
 create table if not exists public.departments (
   id         uuid primary key default gen_random_uuid(),
@@ -660,7 +666,8 @@ create or replace function public.wtm__directory() returns jsonb
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
     'profiles', coalesce((select jsonb_agg(jsonb_build_object(
-        'id', p.id, 'email', p.email, 'full_name', p.full_name, 'short_name', p.short_name, 'title', p.title,
+        'id', p.id, 'email', p.email, 'username', p.username, 'phone', p.phone, 'emoji', p.emoji,
+        'full_name', p.full_name, 'short_name', p.short_name, 'title', p.title,
         'role', p.role, 'active', p.active, 'removed_at', p.removed_at, 'created_at', p.created_at) order by p.full_name)
         from profiles p
         where public.wtm_my_rank() >= 3 or p.role <> 'it' or p.id = auth.uid()), '[]'::jsonb),
@@ -1542,15 +1549,33 @@ begin
     perform public.wtm__require(nr = old.role, 'You can''t change your own role.');
     perform public.wtm__require(coalesce((p->>'active')::boolean, true), 'You can''t turn off your own login.');
   end if;
+  if p ? 'username' then
+    perform public.wtm__require(char_length(left(btrim(p->>'username'), 40)) > 0, 'Enter a user name.');
+    perform public.wtm__require(position('@' in p->>'username') = 0, 'A user name can''t contain @.');
+    perform public.wtm__require(not exists (
+      select 1 from profiles
+      where removed_at is null and id <> p_user and lower(username) = lower(left(btrim(p->>'username'), 40))
+    ), 'That user name is already taken.');
+  end if;
+  if p ? 'email' and btrim(coalesce(p->>'email', '')) <> '' then
+    perform public.wtm__require(p->>'email' ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$', 'Enter a valid email address.');
+  end if;
   update profiles set
+    username   = case when p ? 'username'   then left(btrim(p->>'username'), 40)   else username end,
     full_name  = case when p ? 'full_name'  then left(btrim(p->>'full_name'), 80)  else full_name end,
     short_name = case when p ? 'short_name' then left(btrim(p->>'short_name'), 40) else short_name end,
     title      = case when p ? 'title'      then left(btrim(p->>'title'), 80)      else title end,
+    email      = case when p ? 'email'      then left(btrim(p->>'email'), 120)     else email end,
+    phone      = case when p ? 'phone'      then left(btrim(p->>'phone'), 40)      else phone end,
+    emoji      = case when p ? 'emoji'      then left(btrim(p->>'emoji'), 16)      else emoji end,
     role       = nr,
     active     = case when p ? 'active' then (p->>'active')::boolean else active end,
     updated_at = now()
   where id = p_user;
+  if p ? 'username' and left(btrim(p->>'username'), 40) <> old.username then ch := ch || ('User name → ' || left(btrim(p->>'username'), 40)); end if;
   if p ? 'full_name' and left(btrim(p->>'full_name'), 80) <> old.full_name then ch := ch || ('Name → ' || left(btrim(p->>'full_name'), 80)); end if;
+  if p ? 'email' and left(btrim(p->>'email'), 120) <> old.email then ch := ch || ('Email → ' || coalesce(nullif(left(btrim(p->>'email'), 120), ''), '—')); end if;
+  if p ? 'phone' and left(btrim(p->>'phone'), 40) <> old.phone then ch := ch || ('Phone → ' || coalesce(nullif(left(btrim(p->>'phone'), 40), ''), '—')); end if;
   if p ? 'short_name' and left(btrim(p->>'short_name'), 40) <> old.short_name then ch := ch || ('Known as → ' || coalesce(nullif(left(btrim(p->>'short_name'), 40), ''), '—')); end if;
   if p ? 'title' and left(btrim(p->>'title'), 80) <> old.title then ch := ch || ('Title → ' || coalesce(nullif(left(btrim(p->>'title'), 80), ''), '—')); end if;
   if nr <> old.role then ch := ch || ('Role ' || public.wtm__role_label(old.role) || ' → ' || public.wtm__role_label(nr)); end if;
@@ -1908,10 +1933,23 @@ language plpgsql security definer set search_path = public as $$
 declare nr public.wtm_role := coalesce(nullif(p->>'role', ''), 'staff')::public.wtm_role; dch text;
 begin
   perform public.wtm_svc_check(p_caller, null, nr);
+  perform public.wtm__require(char_length(left(btrim(coalesce(p->>'username', '')), 40)) > 0, 'Enter a user name.');
+  perform public.wtm__require(position('@' in coalesce(p->>'username', '')) = 0, 'A user name can''t contain @.');
+  perform public.wtm__require(not exists (
+    select 1 from profiles
+    where removed_at is null and id <> p_user and lower(username) = lower(left(btrim(p->>'username'), 40))
+  ), 'That user name is already taken.');
+  if btrim(coalesce(p->>'email', '')) <> '' then
+    perform public.wtm__require(p->>'email' ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$', 'Enter a valid email address.');
+  end if;
   update profiles set
-    full_name = coalesce(nullif(left(btrim(p->>'full_name'), 80), ''), full_name),
+    username = left(btrim(p->>'username'), 40),
+    full_name = coalesce(nullif(left(btrim(p->>'full_name'), 80), ''), left(btrim(p->>'username'), 80)),
     short_name = left(btrim(coalesce(p->>'short_name', '')), 40),
     title = left(btrim(coalesce(p->>'title', '')), 80),
+    email = left(btrim(coalesce(p->>'email', '')), 120),
+    phone = left(btrim(coalesce(p->>'phone', '')), 40),
+    emoji = left(btrim(coalesce(p->>'emoji', '')), 16),
     role = nr, active = true, must_change_password = true, updated_at = now()
   where id = p_user;
   dch := public.wtm__set_departments(p_user, p->'departments');
@@ -1970,7 +2008,7 @@ begin
   select id, p_caller from moved on conflict do nothing;
   update projects set owner_id = null where owner_id = p_user;
   update profiles set
-    active = false, removed_at = now(), short_name = '', email = '',
+    active = false, removed_at = now(), short_name = '', email = '', username = '', phone = '',
     must_change_password = false, updated_at = now()
   where id = p_user;
   perform public.wtm__log('user', null::tasks,
@@ -1984,10 +2022,13 @@ end $$;
 create or replace function public.wtm__on_auth_user() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  insert into public.profiles (id, email, full_name, role)
-  values (new.id, coalesce(new.email, ''),
-          coalesce(nullif(new.raw_user_meta_data->>'full_name', ''), split_part(coalesce(new.email, ''), '@', 1)),
-          case when not exists (select 1 from public.profiles) then 'it'::public.wtm_role else 'staff'::public.wtm_role end)
+  insert into public.profiles (id, email, username, full_name, phone, emoji, role)
+  values (new.id, '',
+          left(btrim(coalesce(new.raw_user_meta_data->>'username', '')), 40),
+          coalesce(nullif(new.raw_user_meta_data->>'full_name', ''), nullif(new.raw_user_meta_data->>'username', ''), 'New person'),
+          left(btrim(coalesce(new.raw_user_meta_data->>'phone', '')), 40),
+          left(btrim(coalesce(new.raw_user_meta_data->>'emoji', '')), 16),
+          case when not exists (select 1 from public.profiles where removed_at is null and role = 'it') then 'it'::public.wtm_role else 'staff'::public.wtm_role end)
   on conflict (id) do nothing;
   return new;
 end $$;
@@ -1999,13 +2040,26 @@ create trigger wtm_on_auth_user after insert on auth.users
 create or replace function public.wtm__on_auth_email() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  update public.profiles set email = coalesce(new.email, '') where id = new.id;
+  -- The auth address is only for signing in. The contact email lives on the profile and is set by hand.
   return new;
 end $$;
 
 drop trigger if exists wtm_on_auth_email on auth.users;
 create trigger wtm_on_auth_email after update of email on auth.users
   for each row execute function public.wtm__on_auth_email();
+
+-- Sign-in looks up a user name and returns the private auth address. Granted to anon because
+-- the person is not signed in yet. It never returns the contact email.
+create or replace function public.wtm_login_email(p_username text) returns text
+language sql stable security definer set search_path = public, auth as $$
+  select u.email
+    from public.profiles p
+    join auth.users u on u.id = p.id
+   where p.removed_at is null and p.active
+     and p.username <> ''
+     and lower(p.username) = lower(btrim(coalesce(p_username, '')))
+   limit 1
+$$;
 
 -- logins that existed before this script ran
 insert into public.profiles (id, email, full_name)
@@ -2143,6 +2197,7 @@ grant execute on function
   public.wtm_save_daily(jsonb), public.wtm_open_daily(date, time),
   public.wtm_save_calendar(jsonb), public.wtm_import_holidays(jsonb), public.wtm_calendar_feed(text)
 to authenticated;
+grant execute on function public.wtm_login_email(text) to anon, authenticated;
 grant execute on function public.wtm_svc_check(uuid, uuid, public.wtm_role), public.wtm_svc_after_create(uuid, uuid, jsonb),
   public.wtm_svc_after_reset(uuid, uuid), public.wtm_svc_before_delete(uuid, uuid), public.wtm_svc_after_delete(uuid, uuid),
   public.wtm_feed_data(text) to service_role;

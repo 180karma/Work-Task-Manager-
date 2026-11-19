@@ -1,0 +1,42 @@
+/*
+ * Relay Mail's design tokens, mapped onto WTM's (css/base.css). Custom properties inherit into the
+ * shadow root, so names both apps share (--accent, --surface, --line, --muted, --danger, --shadow-sm ...)
+ * come straight from WTM, light and dark included. Only Relay's own names are defined here.
+ */
+.relay-root {
+  --font-body: var(--f-body);
+  --text: var(--ink);
+  --surface-2: var(--sunk);
+  --hover: var(--sunk);
+  --selected: var(--accent-soft);
+  --accent-strong: var(--accent-hi);
+  --on-accent: var(--accent-ink);
+  --link: var(--accent);
+  --success: var(--c6);
+  --warning: var(--signal);
+  --star: var(--bar-hi);
+  --important: var(--signal);
+  --shadow-lg: var(--shadow);
+
+  /* Relay's navy sidebar takes WTM's navigation colours. */
+  --navy: var(--surface);
+  --navy-2: var(--rail-hover);
+  --navy-3: var(--rail-accent-soft);
+  --navy-text: var(--rail-ink);
+  --navy-muted: var(--rail-muted);
+  --navy-strong: var(--rail-accent);
+  --navy-line: var(--rail-line);
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+
+  --row-pad: 12px;
+  --sidebar-w: 248px;
+  --rail-w: 64px;
+  --list-w: 380px;
+}
+
+.relay-root[data-density='compact'] {
+  --row-pad: 7px;
+}

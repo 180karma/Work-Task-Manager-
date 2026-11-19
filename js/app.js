@@ -622,7 +622,7 @@ function schedulePoll() {
 
 /* ================= screens ================= */
 function showScreen(html) {
-  $('#app').hidden = true; closePop(); closeSheet(true);
+  $('#app').hidden = true; closePop(); closeSheet(true); unmountMail();
   const s = $('#screen'); s.hidden = false; s.innerHTML = html;
   const f = s.querySelector('input'); if (f) setTimeout(() => f.focus(), 30);
 }
@@ -1347,6 +1347,7 @@ function renderNow() {
   else if (UI.view === 'board') renderBoard();
   else if (UI.view === 'orders') renderOrders();
   else if (UI.view === 'invoices') renderInvoices();
+  else if (UI.view === 'mail') renderMail();
   else if (UI.view === 'daily') renderDaily();
   else if (UI.view === 'calendar') renderCalendar();
   else if (UI.view === 'handover') renderHandover();
@@ -2737,6 +2738,42 @@ function renderInvoices() {
   $('#invOpen').href = url;
   if (!f.getAttribute('src')) f.src = url;
 }
+// Mail is Relay Mail, a React app built from src/mail into js/mail/relay-mail.js. It loads the first time the
+// section opens and stays mounted (drafts, scroll, open thread) until this person signs out.
+const MAIL = { app: null, loading: null, error: '' };
+function loadMail() {
+  if (window.RelayMail) return Promise.resolve(window.RelayMail);
+  if (!MAIL.loading) {
+    // Under `npm run dev`, Vite serves the source so mail changes reload live.
+    MAIL.loading = (document.querySelector('script[src="/@vite/client"]') ? import('/src/mail/embed.tsx') : new Promise((ok, fail) => {
+      const s = document.createElement('script');
+      s.src = 'js/mail/relay-mail.js?v=1';
+      s.onload = () => window.RelayMail ? ok(window.RelayMail) : fail(new Error('bad bundle'));
+      s.onerror = () => { s.remove(); fail(new Error('network')); };
+      document.head.append(s);
+    })).catch(e => { MAIL.loading = null; throw e; });
+  }
+  return MAIL.loading;
+}
+function renderMail() {
+  const host = $('#mailHost'), state = $('#mailState');
+  if (MAIL.app) return;
+  host.hidden = true; state.hidden = false;
+  if (MAIL.error) { state.innerHTML = `<span>${esc(MAIL.error)}</span><button type="button" class="btn sm" id="mailRetry">Try again</button>`; return; }
+  state.textContent = 'Opening mail…';
+  const userId = D.me && D.me.id;
+  loadMail().then(RelayMail => {
+    if (MAIL.app || !D.ready || !D.me || D.me.id !== userId) return;
+    MAIL.app = RelayMail.mount(host, {
+      userId, supabaseUrl: CONFIG.url, supabaseAnonKey: CONFIG.anonKey, getSupabase: () => sb,
+      isActive: () => D.ready && UI.view === 'mail' && !sheet && !pop && !$('#app').hidden
+    });
+    host.hidden = false; state.hidden = true;
+  }, () => { MAIL.error = 'Mail didn\'t load. Check your internet connection.'; if (UI.view === 'mail') renderMail(); });
+}
+function unmountMail() {
+  if (MAIL.app) { MAIL.app.unmount(); MAIL.app = null; }
+}
 function renderOrders() {
   fillTradeSelect($('#orderTrade'), $('#orderTrade').value);
   fillDeptSelect($('#orderDept'), $('#orderDept') && $('#orderDept').value, 'Department');
@@ -3220,9 +3257,9 @@ function setNavOpen(open) {
   nav.removeAttribute('inert');
 }
 function setView(v, initial) {
-  if (!['tasks', 'messages', 'board', 'orders', 'invoices', 'daily', 'calendar', 'handover', 'log', 'people', 'settings'].includes(v)) v = 'tasks';
+  if (!['tasks', 'messages', 'mail', 'board', 'orders', 'invoices', 'daily', 'calendar', 'handover', 'log', 'people', 'settings'].includes(v)) v = 'tasks';
   UI.view = v; LS.set('wtm.view', v);
-  for (const k of ['tasks', 'messages', 'board', 'orders', 'invoices', 'daily', 'calendar', 'handover', 'log', 'people', 'settings']) $('#view-' + k).hidden = k !== v;
+  for (const k of ['tasks', 'messages', 'mail', 'board', 'orders', 'invoices', 'daily', 'calendar', 'handover', 'log', 'people', 'settings']) $('#view-' + k).hidden = k !== v;
   try { if (location.hash.slice(1) !== v) history.replaceState(null, '', '#' + v); } catch (_) {}
   closePop(); closeQaMenu(); closeMention(); closeConvMenu();
   renderNow();
@@ -3231,6 +3268,7 @@ function setView(v, initial) {
 function wire() {
   $('#navToggle').addEventListener('click', () => setNavOpen(!$('#nav').classList.contains('open')));
   $('#navScrim').addEventListener('click', () => setNavOpen(false));
+  $('#mailState').addEventListener('click', e => { if (e.target.closest('#mailRetry')) { MAIL.error = ''; renderMail(); } });
   const openSection = b => { if (b.dataset.view === 'messages' && !UI.conv) UI.conv = ALL_CONV; setView(b.dataset.view); if (navIsDrawer()) setNavOpen(false); };
   $('#nav').addEventListener('click', e => { const b = e.target.closest('#navScroll button[data-view]'); if (b) openSection(b); });
   $('#dock').addEventListener('click', e => { const b = e.target.closest('button[data-view]'); if (b) openSection(b); });
@@ -3727,10 +3765,12 @@ function wire() {
     if (!D.ready || $('#app').hidden || sheet || pop || e.metaKey || e.ctrlKey || e.altKey) return;
     const tag = (e.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) { if (e.key === 'Escape') e.target.blur(); return; }
+    // Mail has its own single-key shortcuts (c, e, r, / ...); its keys come from inside a shadow root, so e.target is #mailHost.
+    if (UI.view === 'mail') return;
     const k = e.key.toLowerCase();
     if (k === 'n') { e.preventDefault(); setView('tasks'); $('#qaInput').focus(); }
     else if (e.key === '/') { e.preventDefault(); const map = { tasks: '#taskSearch', orders: '#orderSearch', daily: '#dailySearch', log: '#logSearch', people: '#peopleSearch' }; if (!map[UI.view]) setView('tasks'); $(map[UI.view] || '#taskSearch').focus(); }
-    else if (k === 't') setView('tasks'); else if (k === 'd') setView('daily'); else if (k === 'c') setView('calendar'); else if (k === 'h') setView('handover'); else if (k === 'm') setView('messages'); else if (k === 'b') setView('board'); else if (k === 'o') setView('orders'); else if (k === 'i') setView('invoices'); else if (k === 'l') setView('log'); else if (k === 'p') setView('people'); else if (k === 's') setView('settings');
+    else if (k === 't') setView('tasks'); else if (k === 'd') setView('daily'); else if (k === 'c') setView('calendar'); else if (k === 'h') setView('handover'); else if (k === 'm') setView('messages'); else if (k === 'e') setView('mail'); else if (k === 'b') setView('board'); else if (k === 'o') setView('orders'); else if (k === 'i') setView('invoices'); else if (k === 'l') setView('log'); else if (k === 'p') setView('people'); else if (k === 's') setView('settings');
   });
   addEventListener('hashchange', () => { const v = location.hash.slice(1); if (v && v !== UI.view && D.ready) setView(v); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && D.ready) sync(); });

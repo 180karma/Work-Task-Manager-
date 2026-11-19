@@ -1,0 +1,10 @@
+/* Mail: Relay Mail renders inside #mailHost (in a shadow root, with its own styles) */
+.mailhost{display:block;height:calc(100dvh - 210px);min-height:480px;overflow:hidden;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:var(--shadow-xs);--toast-lift:20px}
+#mailState{display:flex;align-items:center;gap:10px}
+@media (max-width:899px){
+  #view-mail .viewhead{display:none}
+  .mailhost{height:calc(100dvh - 148px - env(safe-area-inset-bottom,0px));min-height:0;--toast-lift:84px}
+}
+@media (min-width:900px){
+  .mailhost{height:calc(100dvh - 120px)}
+}

@@ -14,6 +14,9 @@ WTM is one HTML file plus a Supabase project. Setup takes about ten minutes.
 | `supabase/schema.sql` | Tables, permissions, the log book and every server function. Run once. |
 | `supabase/seed.sql` | Optional starter departments, rooms, keywords and projects. |
 | `supabase/functions/wtm-admin/index.ts` | Edge Function that creates logins and resets passwords. |
+| `js/mail/relay-mail.js` | The Mail section, built from `src/mail/`. Committed, so hosting WTM still needs no build step. |
+| `src/mail/` | Source of the Mail section (React + TypeScript). See `src/mail/README.md`. |
+| `package.json`, `vite.config.ts`, `tests/` | Only for working on Mail and running the browser tests. Not needed to host WTM. |
 
 ## 1. Create the database
 
@@ -81,6 +84,27 @@ Sign in as IT, then:
 **Invoices** shows the [Invoice Scraper](https://github.com/180karma/Invoice_scraper) inside WTM. It is a separate app with its own Supabase project and its own username sign-in, so people sign in to it once inside WTM. WTM roles don't apply there. **Open in a new tab** opens the scraper on its own.
 
 The address comes from `INVOICE_SCRAPER_URL` in `.env` (default `https://180karma.github.io/Invoice_scraper/`). Run `node scripts/sync-config.mjs` after changing it.
+
+## Mail
+
+**Mail** (shortcut `E`) is Relay Mail, one inbox for Gmail and Outlook accounts. It runs inside WTM: same sign-in, same navigation, same colours and light/dark mode. Each person's mail settings and drafts are kept per WTM login on that device.
+
+For now it shows a demo mailbox. Connecting real Gmail and Outlook accounts is Phase 2–5 work (see `src/mail/README.md`); those phases use this Supabase project and WTM's sign-in, and their server keys go into Edge Function secrets, never into `.env` or `js/config.js`.
+
+While Mail is open, its own single-key shortcuts apply (`c` compose, `/` search, `e` archive, `?` for the list) and WTM's letter shortcuts pause. Use the navigation to leave.
+
+### Changing Mail
+
+WTM itself needs no build. Mail is the one part written in React, so changing it needs Node 20+:
+
+```bash
+npm install
+npm run dev          # http://localhost:5173 — all of WTM, with Mail loaded live from src/mail
+npm run build        # type-checks and rewrites js/mail/relay-mail.js; commit that file
+npm run test:e2e     # builds, then checks WTM and Mail in Chromium at desktop, tablet and phone sizes
+```
+
+The first time, run `npx playwright install chromium` for the tests. After a build, bump `?v=` on `js/mail/relay-mail.js` in `js/app.js` so browsers fetch the new copy.
 
 ## Calendar
 

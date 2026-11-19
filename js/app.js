@@ -2485,9 +2485,8 @@ function renderSettings() {
     <div class="panel">
       <h2>Your account</h2>
       <div class="profile-head">${avatar(m.id, 'lg')}<div><b>${esc(m.full_name || m.username || m.email)}</b><span class="muted">${esc(m.username || m.email || '')}</span></div></div>
-      <div class="fld"><span class="lbl">Profile picture</span>${emojiPickerHtml('me-face', m.emoji || '')}</div>
       <dl class="kv"><dt>User name</dt><dd>${esc(m.username || '—')}</dd><dt>Phone</dt><dd>${esc(m.phone || '—')}</dd><dt>Email</dt><dd>${esc(m.email || '—')}</dd><dt>Role</dt><dd>${esc((ROLE[m.role] || {}).label)}</dd><dt>Departments</dt><dd>${esc(deptNames(m.id).join(', ') || '—')}</dd></dl>
-      <div class="row"><button type="button" class="btn" data-act="change-pw">Change password</button><button type="button" class="btn ghost" data-act="sign-out">Log out</button></div>
+      <div class="row"><button type="button" class="btn" data-act="pick-face" aria-haspopup="dialog">Change picture</button><button type="button" class="btn" data-act="change-pw">Change password</button><button type="button" class="btn ghost" data-act="sign-out">Log out</button></div>
     </div>`;
 }
 function renderTry() {
@@ -3361,12 +3360,16 @@ function wire() {
   // settings
   $('#settingsOut').addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.face != null && b.closest('#me-face')) {
-      const emoji = b.dataset.face === '-1' ? '' : (FACES[+b.dataset.face] || '');
-      if ((D.me.emoji || '') === emoji) return;
-      for (const x of b.closest('.faces').querySelectorAll('button')) x.setAttribute('aria-pressed', String(x === b));
-      b.disabled = true;
-      await act('wtm_admin_update_user', { p_user: me(), p: { emoji } }, 'Picture saved.');
+    if (b.dataset.act === 'pick-face') {
+      openPicker(b, {
+        title: 'Profile picture',
+        html: emojiPickerHtml('me-face', (D.me && D.me.emoji) || ''),
+        onFace: async emoji => {
+          closePop();
+          if ((D.me.emoji || '') === emoji) return;
+          await act('wtm_admin_update_user', { p_user: me(), p: { emoji } }, 'Picture saved.');
+        }
+      });
       return;
     }
     if (b.dataset.act === 'change-pw') showChangePassword(false);
@@ -3445,6 +3448,12 @@ function wire() {
   // picker
   $('#pop').addEventListener('click', e => {
     if (!pop) return;
+    const faceBtn = e.target.closest('[data-face]');
+    if (faceBtn && pop.onFace) {
+      const emoji = faceBtn.dataset.face === '-1' ? '' : (FACES[+faceBtn.dataset.face] || '');
+      pop.onFace(emoji);
+      return;
+    }
     if (e.target.closest('[data-pop="close"]')) { closePop(); return; }
     const pinBtn = e.target.closest('[data-pin]');
     if (pinBtn && pop.onPin) { pop.onPin(pinBtn.dataset.pin, pinBtn.dataset.id, e); return; }

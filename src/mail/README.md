@@ -35,7 +35,7 @@ npm run dev                     # http://localhost:5173 — WTM, with Mail serve
 |---|---|
 | `npm run build` | Type-checks, then rewrites `js/mail/relay-mail.js` (commit it, and bump its `?v=` in `js/app.js`) |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm run test:e2e` | Builds, then runs `tests/e2e.mjs`: WTM against a fake Supabase, every WTM section, and the Mail flows at desktop, tablet and phone sizes (`npx playwright install chromium` the first time) |
+| `npm run test:e2e` | Builds, then runs `tests/e2e.mjs`: WTM against a fake Supabase, every WTM section, and the Mail flows at desktop, tablet and phone sizes (`npx playwright install chromium` the first time). `BROWSER=firefox` or `webkit` runs another engine; `VIEWPORT=phone` runs one size |
 
 ## What Phase 1 includes
 
@@ -179,4 +179,4 @@ None of this is needed to run Phase 1. It's listed so the cloud consoles can be 
 - Data is per browser and per WTM login (localStorage, `relay-mail:<user id>:`). Clearing site data restores the demo mailbox.
 - The editor uses `document.execCommand`, which is deprecated but universally supported. It's isolated in `RichEditor.tsx` so it can be replaced.
 - The list isn't virtualised. That's fine for the demo; add virtualisation (e.g. `@tanstack/react-virtual`) once real mailboxes load in Phase 5.
-- The composer's formatting buttons rely on the selection inside the shadow root. Chromium-based browsers expose it fully; in Safari and Firefox typing works but the toolbar's bold/italic highlight may not follow the cursor. Only Chromium is covered by the tests.
+- The composer's formatting buttons read the selection inside the shadow root (`ShadowRoot.getSelection()` where the browser has it). The browser tests pass in Chromium, Firefox and WebKit (`BROWSER=firefox npm run test:e2e`); they cover typing and sending, not the bold/italic highlight in the toolbar.

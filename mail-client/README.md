@@ -18,7 +18,10 @@ A web client that connects existing Gmail and Microsoft Outlook accounts and sho
 
 ## Run it
 
+The app lives in `mail-client/` of this repository, separate from the WTM app at the root.
+
 ```bash
+cd mail-client
 npm install
 cp .env.example .env.local      # VITE_DATA_SOURCE=mock
 npm run dev                     # http://localhost:5173
@@ -127,6 +130,10 @@ src/
   styles/tokens.css            Colour/radius/shadow tokens, light + dark
   styles/app.css               Component styles
 ```
+
+### Reconstructed files
+
+Only the entry files, `App.tsx`, and the components under `layout/`, `mail/` (except `ReadingPane` and `SearchBar`), `compose/` and `accounts/` came from the original Phase 1 source. Everything else listed above was rebuilt from the contracts those components import: `config/`, `types/`, `services/`, `data/`, `state/`, `lib/`, `hooks/`, `mail/ReadingPane.tsx`, `mail/SearchBar.tsx`, `settings/`, `ui/`, both stylesheets, `.env.example`, and `tests/phase1-e2e.mjs` (a smoke suite of 18 checks, not the original 43). If the original files turn up, they can replace these one for one.
 
 ## Environment variables
 

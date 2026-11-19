@@ -34,10 +34,11 @@ const js = result.outputFiles.find((f) => f.path.endsWith('.js')).text.replace(/
 const css = result.outputFiles.find((f) => f.path.endsWith('.css'))?.text ?? '';
 
 const template = readFileSync(resolve(root, 'index.html'), 'utf8');
+// Function replacers: the bundle contains `$&` (e.g. in React), which a string replacement would expand.
 const html = template
   .replace(/\s*<script type="module" src="\/src\/main.tsx"><\/script>/, '')
-  .replace('</head>', `    <style>${css}</style>\n  </head>`)
-  .replace('</body>', `    <script>${js}</script>\n  </body>`);
+  .replace('</head>', () => `    <style>${css}</style>\n  </head>`)
+  .replace('</body>', () => `    <script>${js}</script>\n  </body>`);
 
 const file = resolve(out, 'relay-mail.html');
 writeFileSync(file, html);

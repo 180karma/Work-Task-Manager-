@@ -4,11 +4,11 @@
 --  rules to start from. Edit or delete any of them later in the app.
 -- =====================================================================
 
-insert into public.departments (name, code, color) values
-  ('Maintenance', 'MNT', 'c1'),
-  ('Front desk',  'FD',  'c2'),
-  ('House Keeping', 'CLN', 'c6'),
-  ('IT',          'IT',  'c8')
+insert into public.departments (name, code, color, icon) values
+  ('Maintenance', 'MNT', 'c1', 'wrench'),
+  ('Front desk',  'FD',  'c2', 'bell'),
+  ('House Keeping', 'CLN', 'c6', 'spark'),
+  ('IT',          'IT',  'c8', 'monitor')
 on conflict do nothing;
 
 insert into public.rooms (name, aliases) values

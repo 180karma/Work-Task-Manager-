@@ -65,6 +65,17 @@ const I = {
   person: '<svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/></svg>',
   people: '<svg class="ico" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5M15.5 5.6a3 3 0 0 1 0 5.8M17.5 14.3c1.7.6 2.8 2.2 3.1 4.7"/></svg>',
   dept: '<svg class="ico" viewBox="0 0 24 24"><path d="M4 20V8l8-4 8 4v12M9 20v-6h6v6M4 20h16"/></svg>',
+  wrench: '<svg class="ico" viewBox="0 0 24 24"><path d="M14.7 6.3a3.5 3.5 0 0 0-4.6 4.6L4.5 16.5 7.5 19.5l5.6-5.6a3.5 3.5 0 0 0 4.6-4.6L15.2 11.8 12.2 8.8l2.5-2.5Z"/></svg>',
+  bell: '<svg class="ico" viewBox="0 0 24 24"><path d="M6 16.5h12l-1.2-2V10a4.8 4.8 0 0 0-9.6 0v4.5L6 16.5Z"/><path d="M10 16.5a2 2 0 0 0 4 0"/></svg>',
+  spark: '<svg class="ico" viewBox="0 0 24 24"><path d="M12 3.5 13.4 9 19 10.5 13.4 12 12 17.5 10.6 12 5 10.5 10.6 9 12 3.5Z"/><path d="M18 15.5 18.7 17.5 20.7 18.2 18.7 18.9 18 20.9 17.3 18.9 15.3 18.2 17.3 17.5 18 15.5Z"/></svg>',
+  monitor: '<svg class="ico" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="12" rx="2"/><path d="M8 20h8M12 16.5V20"/></svg>',
+  utensils: '<svg class="ico" viewBox="0 0 24 24"><path d="M8 3.5v7a2 2 0 0 1-2 2H6v8M8 3.5v6M5 3.5v6M18 3.5c1.4 2 2 4 2 6.2 0 1.6-1 2.8-2.4 2.8H17V20.5"/></svg>',
+  glass: '<svg class="ico" viewBox="0 0 24 24"><path d="M8 3.5h8l-1 7.2a3.2 3.2 0 0 1-6 0L8 3.5Z"/><path d="M12 13.7V20.5M9 20.5h6"/></svg>',
+  shield: '<svg class="ico" viewBox="0 0 24 24"><path d="M12 3.5 19 6.2v5.4c0 4.2-2.8 7.2-7 8.9-4.2-1.7-7-4.7-7-8.9V6.2L12 3.5Z"/></svg>',
+  leaf: '<svg class="ico" viewBox="0 0 24 24"><path d="M5 19.5C5 11 11 4.5 20 4.5 19.5 14 13 19.5 5 19.5Z"/><path d="M9 15.5c2-2 4.2-3.6 7-5"/></svg>',
+  wave: '<svg class="ico" viewBox="0 0 24 24"><path d="M3 8.5c1.6 1.4 3.2 1.4 4.8 0s3.2-1.4 4.8 0 3.2 1.4 4.8 0 3.2-1.4 4.6 0"/><path d="M3 14.5c1.6 1.4 3.2 1.4 4.8 0s3.2-1.4 4.8 0 3.2 1.4 4.8 0 3.2-1.4 4.6 0"/></svg>',
+  coin: '<svg class="ico" viewBox="0 0 24 24"><ellipse cx="12" cy="7" rx="7" ry="3"/><path d="M5 7v10c0 1.7 3.1 3 7 3s7-1.3 7-3V7"/><path d="M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/></svg>',
+  bed: '<svg class="ico" viewBox="0 0 24 24"><path d="M3.5 18.5V8M3.5 14h17v4.5M20.5 14V10.5a2 2 0 0 0-2-2H11v5.5"/><circle cx="7.5" cy="11" r="1.3"/></svg>',
   cal: '<svg class="ico" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14" rx="2"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></svg>',
   flag: '<svg class="ico" viewBox="0 0 24 24"><path d="M6 21V4M6 4.5h11l-2 4 2 4H6"/></svg>',
   pin: '<svg class="ico" viewBox="0 0 24 24"><path d="M12 21s-6.5-6.2-6.5-11a6.5 6.5 0 0 1 13 0c0 4.8-6.5 11-6.5 11Z"/><circle cx="12" cy="10" r="2.3"/></svg>',
@@ -79,7 +90,37 @@ const I = {
   trade: '<svg class="ico" viewBox="0 0 24 24"><path d="M14.7 6.3a3.5 3.5 0 0 0-4.6 4.6L4.5 16.5 7.5 19.5l5.6-5.6a3.5 3.5 0 0 0 4.6-4.6L15.2 11.8 12.2 8.8l2.5-2.5Z"/></svg>',
   camera: '<svg class="ico" viewBox="0 0 24 24"><path d="M8.2 7.2 9.4 5.2h5.2l1.2 2h2.7a1.8 1.8 0 0 1 1.8 1.8v8.2a1.8 1.8 0 0 1-1.8 1.8H5.5a1.8 1.8 0 0 1-1.8-1.8V9a1.8 1.8 0 0 1 1.8-1.8h2.7Z"/><circle cx="12" cy="13" r="3.1"/></svg>'
 };
-const icon = (k, style) => style ? I[k].replace('class="ico"', `class="ico" style="${style}"`) : I[k];
+const icon = (k, style) => style ? (I[k] || I.dept).replace('class="ico"', `class="ico" style="${style}"`) : (I[k] || I.dept);
+const DEPT_ICONS = ['wrench', 'bell', 'spark', 'monitor', 'utensils', 'glass', 'shield', 'leaf', 'wave', 'coin', 'bed', 'dept'];
+const DEPT_ICON_LABEL = { wrench: 'Tools', bell: 'Front desk', spark: 'Housekeeping', monitor: 'Computers', utensils: 'Kitchen', glass: 'Bar', shield: 'Security', leaf: 'Grounds', wave: 'Pool', coin: 'Accounts', bed: 'Rooms', dept: 'Building' };
+function guessDeptIcon(d) {
+  const s = (((d && d.name) || '') + ' ' + ((d && d.code) || '')).toLowerCase();
+  if (/\b(maint|mnt|engineer|repair|handy)\b/.test(s)) return 'wrench';
+  if (/\b(front|desk|fd|recept|concierge)\b/.test(s)) return 'bell';
+  if (/\b(house|clean|hk|cln|laundry|linen)\b/.test(s)) return 'spark';
+  if (/\b(it|tech|computer|network|ict)\b/.test(s)) return 'monitor';
+  if (/\b(kitchen|chef|food|cook)\b/.test(s)) return 'utensils';
+  if (/\b(bar|beverage)\b/.test(s)) return 'glass';
+  if (/\b(security|guard)\b/.test(s)) return 'shield';
+  if (/\b(garden|ground|landscape)\b/.test(s)) return 'leaf';
+  if (/\b(pool|spa|swim)\b/.test(s)) return 'wave';
+  if (/\b(account|finance|payroll)\b/.test(s)) return 'coin';
+  if (/\b(room|rooms)\b/.test(s)) return 'bed';
+  return 'dept';
+}
+function deptLook(d) {
+  const key = d && d.icon && I[d.icon] ? d.icon : guessDeptIcon(d);
+  return { icon: key, color: (d && d.color) || 'c8' };
+}
+function deptChipHtml(d, text) {
+  const L = deptLook(d);
+  return `<span class="tchip dept" style="--pc:var(--${esc(L.color)})">${icon(L.icon)}${esc(text != null ? text : (d ? d.name : 'Department'))}</span>`;
+}
+function deptLead(d, size) {
+  const L = deptLook(d);
+  const box = size ? `;width:${size}px;height:${size}px` : '';
+  return `<span class="cicon" style="--pc:var(--${esc(L.color)})${box}">${icon(L.icon)}</span>`;
+}
 
 /* ================= vocabulary ================= */
 const ROLE = { it: { label: 'IT', rank: 4 }, admin: { label: 'Admin', rank: 3 }, supervisor: { label: 'Supervisor', rank: 2 }, staff: { label: 'Staff', rank: 1 } };
@@ -290,7 +331,7 @@ function assigneeLabel(a) {
 }
 function assigneeChip(a) {
   if (a.kind === 'user') return `<span class="tchip person">${icon('person')}${esc(shortOf(a.id))}</span>`;
-  if (a.kind === 'dept') { const d = D.depts.get(a.id); return `<span class="tchip dept" style="--pc:var(--${esc(d ? d.color : 'c8')})">${icon('dept')}${esc(d ? d.name : 'Department')}</span>`; }
+  if (a.kind === 'dept') return deptChipHtml(D.depts.get(a.id));
   const g = D.groups.get(a.id); return `<span class="tchip group" style="--pc:var(--${esc(g ? g.color : 'c8')})">${icon('people')}${esc(g ? g.name : 'Group')}</span>`;
 }
 function tagGlyph(type) {
@@ -302,7 +343,7 @@ function tagGlyph(type) {
 }
 function tagInfo(t) {
   if (t.startsWith('person:')) { const id = t.slice(7); return { type: 'person', id, label: '@' + shortOf(id) }; }
-  if (t.startsWith('dept:')) { const d = D.depts.get(t.slice(5)); return { type: 'dept', id: t.slice(5), label: d ? d.name : 'Department', color: d ? d.color : 'c8' }; }
+  if (t.startsWith('dept:')) { const d = D.depts.get(t.slice(5)); const L = deptLook(d); return { type: 'dept', id: t.slice(5), label: d ? d.name : 'Department', color: L.color, icon: L.icon }; }
   if (t.startsWith('room:')) return { type: 'room', label: t.slice(5) };
   if (t.startsWith('trade:')) return { type: 'trade', id: t.slice(6), label: tradeLabel(t.slice(6)) };
   return { type: 'word', label: '#' + t };
@@ -310,7 +351,7 @@ function tagInfo(t) {
 function tagChip(t) {
   const i = tagInfo(t);
   if (i.type === 'person') return `<span class="tchip person">${icon('person')}${esc(i.label.slice(1))}</span>`;
-  if (i.type === 'dept') return `<span class="tchip dept" style="--pc:var(--${esc(i.color)})">${icon('dept')}${esc(i.label)}</span>`;
+  if (i.type === 'dept') return deptChipHtml(D.depts.get(i.id), i.label);
   if (i.type === 'room') return `<span class="tchip room" data-room="${esc(i.label)}">${icon('pin')}${esc(i.label)}</span>`;
   if (i.type === 'trade') return `<span class="tchip trade">${icon('trade')}${esc(i.label)}</span>`;
   return `<span class="tchip word">${esc(i.label)}</span>`;
@@ -752,7 +793,7 @@ function mentionChoices(q, taken) {
   for (const d of liveDepts()) {
     if (has('dept', d.id)) continue;
     const s = rank(d.name, d.code); if (!s) continue;
-    rows.push({ kind: 'dept', id: d.id, label: d.name, sub: d.code ? d.code + ' · Department' : 'Department', score: s, ord: 0, lead: `<span class="cicon" style="--pc:var(--${esc(d.color)})">${icon('dept', 'width:15px;height:15px')}</span>` });
+    rows.push({ kind: 'dept', id: d.id, label: d.name, sub: d.code ? d.code + ' · Department' : 'Department', score: s, ord: 0, lead: deptLead(d) });
   }
   for (const p of activePeople()) {
     if (has('user', p.id)) continue;
@@ -1078,7 +1119,7 @@ function findPopItem(key) { for (const s of pop.sections || []) for (const it of
 function assigneeSections(selected = []) {
   const has = (k, id) => selected.some(a => a.kind === k && a.id === id);
   return [
-    { label: 'Departments', items: liveDepts().map(d => ({ key: 'dept:' + d.id, label: d.name, sub: people(membersOfDept(d.id).size), lead: `<span class="cicon" style="--pc:var(--${esc(d.color)});width:28px;height:28px">${icon('dept', 'width:15px;height:15px')}</span>`, selected: has('dept', d.id), keywords: d.code })) },
+    { label: 'Departments', items: liveDepts().map(d => ({ key: 'dept:' + d.id, label: d.name, sub: people(membersOfDept(d.id).size), lead: deptLead(d, 28), selected: has('dept', d.id), keywords: d.code })) },
     { label: 'Groups', items: liveGroups().map(g => ({ key: 'group:' + g.id, label: g.name, sub: people(membersOfGroup(g.id).size), lead: `<span class="cicon" style="--pc:var(--${esc(g.color)});width:28px;height:28px">${icon('people', 'width:15px;height:15px')}</span>`, selected: has('group', g.id) })) },
     { label: 'People', items: activePeople().map(p => ({ key: 'user:' + p.id, label: (p.full_name || p.email) + (p.id === me() ? ' (you)' : ''), sub: [ROLE[p.role] ? ROLE[p.role].label : '', Array.from(deptsOf(p.id)).map(id => D.depts.get(id) && D.depts.get(id).name).filter(Boolean).join(', ')].filter(Boolean).join(' · '), lead: avatar(p.id), selected: has('user', p.id), keywords: p.short_name + ' ' + p.email + ' ' + p.title })) }
   ];
@@ -1219,7 +1260,7 @@ function pickRecipient(anchor, onPick) {
     title: 'Message', search: true, searchPlaceholder: 'Search people, departments, groups',
     sections: [
       { label: 'General (default)', items: [{ key: ALL_CONV, label: 'Everyone', sub: 'Read by all staff · no department required', lead: `<span class="cicon" style="--pc:var(--accent);width:28px;height:28px">${icon('people', 'width:15px;height:15px')}</span>` }] },
-      { label: 'Departments (optional)', items: depts.map(d => ({ key: 'dept:' + d.id, label: d.name, sub: `${people(membersOfDept(d.id).size)} · read by all`, lead: `<span class="cicon" style="--pc:var(--${esc(d.color)});width:28px;height:28px">${icon('dept', 'width:15px;height:15px')}</span>` })) },
+      { label: 'Departments (optional)', items: depts.map(d => ({ key: 'dept:' + d.id, label: d.name, sub: `${people(membersOfDept(d.id).size)} · read by all`, lead: deptLead(d, 28) })) },
       { label: 'Groups', items: liveGroups().filter(g => myGroups().has(g.id)).map(g => ({ key: 'group:' + g.id, label: g.name, sub: people(membersOfGroup(g.id).size), lead: `<span class="cicon" style="--pc:var(--${esc(g.color)});width:28px;height:28px">${icon('people', 'width:15px;height:15px')}</span>` })) },
       { label: 'People', items: activePeople().filter(p => p.id !== u).map(p => ({ key: 'user:' + p.id, label: p.full_name || p.email, sub: p.title || (ROLE[p.role] || {}).label, lead: avatar(p.id), keywords: p.short_name + ' ' + p.email })) }
     ],
@@ -1672,7 +1713,7 @@ function convInfo(key) {
   const [kind, id] = (key || ALL_CONV).split(':');
   if (kind === 'all') return { key: ALL_CONV, kind: 'all', id: ALL_ID, name: 'Everyone', sub: 'All staff · read by all', lead: `<span class="cicon" style="--pc:var(--accent)">${I.people}</span>`, canPost: true };
   if (kind === 'user') { const p = prof(id); return { key, kind, id, name: p ? p.full_name || p.email : 'Someone', sub: p ? [p.title, (ROLE[p.role] || {}).label].filter(Boolean).join(' · ') : '', lead: avatar(id), canPost: !!(p && p.active) }; }
-  if (kind === 'dept') { const d = D.depts.get(id); return { key, kind, id, name: d ? d.name : 'Department', sub: `${people(membersOfDept(id).size)} · department · read by all`, lead: `<span class="cicon" style="--pc:var(--${esc(d ? d.color : 'c8')})">${I.dept}</span>`, canPost: true }; }
+  if (kind === 'dept') { const d = D.depts.get(id); const L = deptLook(d); return { key, kind, id, name: d ? d.name : 'Department', sub: `${people(membersOfDept(id).size)} · department · read by all`, color: L.color, lead: deptLead(d), canPost: true }; }
   const g = D.groups.get(id); return { key, kind, id, name: g ? g.name : 'Group', sub: `${people(membersOfGroup(id).size)} · group`, lead: `<span class="cicon" style="--pc:var(--${esc(g ? g.color : 'c8')})">${I.people}</span>`, canPost: myGroups().has(id) };
 }
 function conversations() {
@@ -1701,14 +1742,29 @@ function renderMessages() {
   let h = `<button type="button" class="conv-pick" id="convPick" aria-expanded="${open ? 'true' : 'false'}" aria-haspopup="listbox" aria-controls="convMenu">${cur.lead}<span class="nm">${esc(cur.name)}</span>${badge(cur.unread)}<svg class="ico chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div class="conv-menu" id="convMenu" role="listbox" aria-label="Conversations">`;
   for (const sec of order) {
     const list = all.filter(c => c.sec === sec).sort(sortC); if (!list.length) continue;
-    h += `<div class="convsec">${esc(sec)}</div>` + list.map(c => `<button type="button" class="conv${c.unread ? ' unread' : ''}" data-conv="${esc(c.key)}" role="option"${UI.conv === c.key ? ' aria-selected="true" aria-current="true"' : ''}>${c.lead}<span class="nm">${esc(c.name)}</span><span class="tm">${c.last ? esc(fmtWhen(c.last.at)) : ''}</span><span class="pv">${c.last ? esc((c.last.sender === me() ? 'You: ' : c.kind !== 'user' ? shortOf(c.last.sender) + ': ' : '') + (c.last.body || (c.last.photo ? 'Photo' : c.last.pin ? 'Pin' : ''))) : esc(c.sub)}</span>${badge(c.unread)}</button>`).join('');
+    h += `<div class="convsec">${esc(sec)}</div>` + list.map(c => `<button type="button" class="conv${c.unread ? ' unread' : ''}" data-conv="${esc(c.key)}" role="option"${c.color ? ` style="--pc:var(--${esc(c.color)})"` : ''}${UI.conv === c.key ? ' aria-selected="true" aria-current="true"' : ''}>${c.lead}<span class="nm">${esc(c.name)}</span><span class="tm">${c.last ? esc(fmtWhen(c.last.at)) : ''}</span><span class="pv">${c.last ? esc((c.last.sender === me() ? 'You: ' : c.kind !== 'user' ? shortOf(c.last.sender) + ': ' : '') + (c.last.body || (c.last.photo ? 'Photo' : c.last.pin ? 'Pin' : ''))) : esc(c.sub)}</span>${badge(c.unread)}</button>`).join('');
   }
   h += '</div>';
   $('#convList').innerHTML = h;
   $('#msgLayout').classList.toggle('open', !!UI.conv);
   renderThread();
 }
-const msgHtml = s => String(s).split(/((?:^|(?<=\s))[@^][^\s@#^]+)/).map((p, i) => i % 2 ? `<b class="mtag">${esc(p)}</b>` : esc(p)).join('');
+function msgHtml(s) {
+  return String(s).split(/((?:^|(?<=\s))[@^][^\s@#^]+)/).map((p, i) => {
+    if (i % 2 === 0) return esc(p);
+    if (p[0] === '@') {
+      const hit = findAssignee(p.slice(1));
+      if (hit && hit.kind === 'dept') { const L = deptLook(D.depts.get(hit.id)); return `<b class="mtag dept" style="--pc:var(--${esc(L.color)})">${icon(L.icon, 'width:12px;height:12px')}${esc(p)}</b>`; }
+      if (hit && hit.kind === 'user') return `<b class="mtag person">${esc(p)}</b>`;
+    }
+    if (p[0] === '^') return `<b class="mtag place">${esc(p)}</b>`;
+    return `<b class="mtag">${esc(p)}</b>`;
+  }).join('');
+}
+function deptTag(d, prefix) {
+  const L = deptLook(d);
+  return `<span class="dept-tag" style="--pc:var(--${esc(L.color)})">${icon(L.icon, 'width:12px;height:12px')}${prefix || ''}${esc(d ? d.name : 'Department')}</span>`;
+}
 let threadKey = '';
 function renderThread() {
   const th = $('#thread');
@@ -1729,13 +1785,13 @@ function renderThread() {
       const mine = m.sender === me(), t = m.task_id && D.tasks.get(m.task_id);
       const deptObj = m.to_kind === 'dept' ? D.depts.get(m.to_id) : null;
       const fromLbl = !mine && c.kind !== 'user'
-        ? `${esc(nameOf(m.sender))}${isAll && deptObj ? ` · <span class="dept-tag">${esc(deptObj.name)}</span>` : ''}`
-        : (mine && isAll && deptObj ? `<span class="dept-tag">To ${esc(deptObj.name)}</span>` : '');
+        ? `${esc(nameOf(m.sender))}${isAll && deptObj ? ` · ${deptTag(deptObj)}` : ''}`
+        : (mine && isAll && deptObj ? deptTag(deptObj, 'To ') : '');
       body += `<div class="bub${mine ? ' me' : ''}">${fromLbl ? `<span class="from">${fromLbl}</span>` : ''}${m.body ? `<span class="body">${msgHtml(m.body)}</span>` : ''}${m.photo ? shotImg(m.photo) : ''}${m.pin ? pinFigure(m.pin, 'mini') : ''}${m.task_id ? `<button type="button" class="tlink" data-open-task="${esc(m.task_id)}">${icon('task', 'width:14px;height:14px')}${esc(t ? trunc(t.title, 50) : 'Linked task')}</button>` : ''}<span class="at">${esc(fmtTime(m.at))}</span></div>`;
     }
     const depts = liveDepts();
     const deptSelect = isAll && depts.length ? `<label class="msg-dept-opt"><span class="sr">Department (optional)</span><select class="field sm" id="msgDept" title="Optional: tag a department (still read by all)"><option value="">Dept: Optional (All)</option>${depts.map(d => `<option value="${esc(d.id)}"${UI.msgDept === d.id ? ' selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>` : '';
-    th.innerHTML = `<div class="thead"><button type="button" class="iconbtn" data-act="conv-back" aria-label="Back to conversations">${I.back}</button>${c.lead}<div class="who"><b>${esc(c.name)}</b><span>${esc(c.sub)}</span></div></div>
+    th.innerHTML = `<div class="thead${c.kind === 'dept' ? ' dept' : ''}"${c.color ? ` style="--pc:var(--${esc(c.color)})"` : ''}><button type="button" class="iconbtn" data-act="conv-back" aria-label="Back to conversations">${I.back}</button>${c.lead}<div class="who"><b>${esc(c.name)}</b><span>${esc(c.sub)}</span></div></div>
       <div class="tmsgs" id="tmsgs">${body || `<p class="muted" style="margin:auto;text-align:center;font-size:13.5px">No messages yet. Type below and press Send — everyone can read it.</p>`}</div>
       ${canPost ? `<form class="tcompose" id="msgForm" autocomplete="off">
         <div class="linkbar" id="msgLinked"></div>
@@ -1797,7 +1853,7 @@ function openNewMessageSheet() {
           <span class="lbl">Department <small class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">(optional — leave on Everyone to send to all)</small></span>
           <div class="chipline" id="nm-targets">
             <button type="button" class="tool" data-target="${ALL_CONV}" aria-pressed="true">${icon('people')}<span>Everyone (all)</span></button>
-            ${depts.map(d => `<button type="button" class="tool" data-target="dept:${esc(d.id)}" aria-pressed="false"><i class="pdot" style="--pc:var(--${esc(d.color)})"></i><span>${esc(d.name)}</span></button>`).join('')}
+            ${depts.map(d => { const L = deptLook(d); return `<button type="button" class="tool" data-target="dept:${esc(d.id)}" aria-pressed="false"><i class="pdot" style="--pc:var(--${esc(L.color)})"></i>${icon(L.icon, 'width:15px;height:15px')}<span>${esc(d.name)}</span></button>`; }).join('')}
           </div>
         </div>
         ${groups.length || others.length ? `<div class="fld">
@@ -2033,7 +2089,7 @@ function renderPeople() {
       <p class="listfoot">${list.length} ${list.length === 1 ? 'person' : 'people'}</p>` : `<div class="empty"><p style="margin:0">No one matches.</p></div>`;
   } else if (PP.tab === 'depts') {
     const list = (canAdmin() ? Array.from(D.depts.values()) : liveDepts()).sort((a, b) => (a.archived - b.archived) || cmpStr(a.name, b.name));
-    out.innerHTML = list.length ? `<ul class="plist2">${list.map(d => { const mem = Array.from(membersOfDept(d.id)); return `<li><button type="button" class="prow2${d.archived ? ' off' : ''}" data-dept="${esc(d.id)}"><span class="cicon" style="--pc:var(--${esc(d.color)});width:36px;height:36px">${I.dept}</span><span class="nm">${esc(d.name)}${d.code ? `<small>${esc(d.code)}</small>` : ''}</span>
+    out.innerHTML = list.length ? `<ul class="plist2">${list.map(d => { const mem = Array.from(membersOfDept(d.id)); return `<li><button type="button" class="prow2${d.archived ? ' off' : ''}" data-dept="${esc(d.id)}">${deptLead(d, 36)}<span class="nm">${esc(d.name)}${d.code ? `<small>${esc(d.code)}</small>` : ''}</span>
       <span class="side2">${myDepts().has(d.id) ? '<span class="rolepill admin">Yours</span>' : ''}${d.archived ? '<span class="rolepill off">Archived</span>' : ''}</span>
       <span class="sub"><span class="avs">${mem.slice(0, 6).map(id => avatar(id, 'sm')).join('')}</span><span>${mem.length} ${mem.length === 1 ? 'person' : 'people'}${headsOfDept(d.id).size ? ' · head ' + esc(Array.from(headsOfDept(d.id)).map(shortOf).join(', ')) : ''}</span></span></button></li>`; }).join('')}</ul>` : `<div class="empty"><h2>No departments yet</h2><p>${canAdmin() ? 'Add departments, then put people in them. Tasks and messages can go to a whole department.' : 'An admin or IT sets up departments.'}</p></div>`;
   } else {
@@ -2174,12 +2230,14 @@ function deptSheet(id) {
   const d = id ? D.depts.get(id) : null, admin = canAdmin();
   if (!admin) { if (d) { PP.dept = id; PP.tab = 'people'; savePP(); renderPeople(); } return; }
   let color = d ? d.color : COLORS[D.depts.size % COLORS.length];
+  let iconKey = d && d.icon && I[d.icon] ? d.icon : guessDeptIcon(d);
   openSheet({
     kind: 'dept', focus: d ? null : '#dp-name',
     html: () => `${sheetHead(d ? 'Department' : 'New department', d ? people(membersOfDept(id).size) : '')}
       <div class="sh-body">
         <div class="fgrid"><label class="fld"><span class="lbl">Name</span><input class="field" id="dp-name" maxlength="80" value="${esc(d ? d.name : '')}"></label>
         <label class="fld"><span class="lbl">Short code</span><input class="field" id="dp-code" maxlength="12" value="${esc(d ? d.code : '')}" placeholder="e.g. MNT"></label></div>
+        <div class="fld"><span class="lbl">Icon</span><div class="swatches icons" id="dp-icon" role="radiogroup" aria-label="Icon">${DEPT_ICONS.map(k => `<button type="button" data-icon="${k}" aria-pressed="${k === iconKey}" aria-label="${esc(DEPT_ICON_LABEL[k])}">${icon(k)}</button>`).join('')}</div></div>
         <div class="fld"><span class="lbl">Colour</span>${swatchHtml('dp-color', color)}</div>
         <div class="fld"><span class="lbl">Members</span>${checklistHtml('dp-members', activePeople().map(p => ({ id: p.id, label: p.full_name || p.email, sub: (ROLE[p.role] || {}).label, lead: avatar(p.id, 'sm') })), d ? membersOfDept(id) : new Set())}</div>
         <div class="fld"><span class="lbl">Department head</span><p class="muted" style="margin:0 0 6px;font-size:13px">They keep their role. An order for this department tags the head.</p>${checklistHtml('dp-heads', activePeople().map(p => ({ id: p.id, label: p.full_name || p.email, sub: (ROLE[p.role] || {}).label, lead: avatar(p.id, 'sm') })), d ? headsOfDept(id) : new Set())}</div>
@@ -2189,6 +2247,7 @@ function deptSheet(id) {
     click: async b => {
       const k = b.dataset.sh;
       if (b.dataset.color) { color = b.dataset.color; for (const x of $$('#dp-color button')) x.setAttribute('aria-pressed', String(x === b)); return; }
+      if (b.dataset.icon) { iconKey = b.dataset.icon; for (const x of $$('#dp-icon button')) x.setAttribute('aria-pressed', String(x === b)); return; }
       if (k === 'archive' || k === 'unarchive') { if (await act('wtm_save_department', { p: { id, archived: k === 'archive' } }, k === 'archive' ? 'Department archived.' : 'Department restored.')) closeSheet(true); return; }
       if (k !== 'save') return;
       const name = $('#dp-name').value.trim(); if (!name) { toast('Give the department a name.'); return; }
@@ -2196,7 +2255,7 @@ function deptSheet(id) {
       const heads = $('#dp-heads') ? checked('dp-heads') : [];
       const members = new Set(checked('dp-members'));
       heads.forEach(hid => members.add(hid));
-      const payload = { id: id || null, name, code: $('#dp-code').value.trim(), color, members: Array.from(members) };
+      const payload = { id: id || null, name, code: $('#dp-code').value.trim(), color, icon: iconKey, members: Array.from(members) };
       const same = (a, b) => a.slice().sort().join() === b.slice().sort().join();
       if (!id || !same(heads, Array.from(headsOfDept(id)))) payload.heads = heads;
       const r = await act('wtm_save_department', { p: payload }, d ? 'Saved.' : 'Department created.');
@@ -2432,7 +2491,7 @@ function renderTry() {
   for (const d of det) if (d.tag && !tags.includes(d.tag)) tags.push(d.tag);
   const bits = q.assign.map(a => `<span class="tchip person">${icon('person')}→ ${esc(assigneeLabel(a))}</span>`)
     .concat(det.map(d => d.type === 'project' ? `<span class="tchip">${icon('folder')}${esc(d.label)}</span>` : d.tag ? tagChip(d.tag).replace('tchip word', 'tchip') : ''))
-    .concat(deptsForTags(tags).map(id => { const dept = D.depts.get(id) || {}; return `<span class="tchip dept" style="--pc:var(--${esc(dept.color || 'c8')})">${icon('dept')}→ ${esc(dept.name || 'Department')}</span>`; }))
+    .concat(deptsForTags(tags).map(id => deptChipHtml(D.depts.get(id), '→ ' + ((D.depts.get(id) || {}).name || 'Department'))))
     .concat(q.due ? [`<span class="tchip">${icon('cal')}Due ${esc(dueLabel(q.due))}</span>`] : []).concat(q.priority ? [`<span class="tchip">${icon('flag')}P${q.priority}</span>`] : []);
   el.innerHTML = bits.join('') || '<span class="muted" style="font-size:13px">Nothing picked up yet.</span>';
 }
@@ -2525,7 +2584,7 @@ function renderOrders() {
     return `<article class="order${o.status === 'received' ? ' received' : ''}">
       <div class="grow">
         <div class="item">${esc(o.item)} <span class="qty">${esc(o.qty || '1')}</span></div>
-        <div class="meta"><span class="ost ${esc(o.status)}">${esc(orderLabel(o.status))}</span>${o.trade ? `<span class="tchip trade">${icon('trade')}${esc(tradeLabel(o.trade))}</span>` : ''}${o.department_id && D.depts.get(o.department_id) ? `<span class="tchip dept" style="--pc:var(--${esc(D.depts.get(o.department_id).color || 'c8')})">${icon('dept')}${esc(D.depts.get(o.department_id).name)}</span>` : ''}${(o.tagged || []).map(id => `<span class="tchip person">${icon('person')}${esc(nameOf(id))}</span>`).join('')}${o.task_id && D.tasks.get(o.task_id) && !D.tasks.get(o.task_id).deleted_at ? `<button type="button" class="btn sm ghost" data-open-task="${esc(o.task_id)}">${esc(trunc(D.tasks.get(o.task_id).title, 32))}</button>` : ''}<span>${esc(nameOf(o.created_by))} · ${esc(fmtWhen(o.created_at))}</span></div>
+        <div class="meta"><span class="ost ${esc(o.status)}">${esc(orderLabel(o.status))}</span>${o.trade ? `<span class="tchip trade">${icon('trade')}${esc(tradeLabel(o.trade))}</span>` : ''}${o.department_id && D.depts.get(o.department_id) ? deptChipHtml(D.depts.get(o.department_id)) : ''}${(o.tagged || []).map(id => `<span class="tchip person">${icon('person')}${esc(nameOf(id))}</span>`).join('')}${o.task_id && D.tasks.get(o.task_id) && !D.tasks.get(o.task_id).deleted_at ? `<button type="button" class="btn sm ghost" data-open-task="${esc(o.task_id)}">${esc(trunc(D.tasks.get(o.task_id).title, 32))}</button>` : ''}<span>${esc(nameOf(o.created_by))} · ${esc(fmtWhen(o.created_at))}</span></div>
         ${o.note ? `<div class="note">${esc(o.note)}</div>` : ''}
       </div>
       <div class="acts">
@@ -2587,7 +2646,7 @@ function renderDaily() {
     if (!g) { g = { id: d.department_id, name: (D.depts.get(d.department_id) || {}).name || 'Department', color: (D.depts.get(d.department_id) || {}).color || 'c8', rows: [] }; groups.push(g); }
     g.rows.push(d);
   }
-  out.innerHTML = groups.map(g => `<section class="dgroup"><h2><span class="cicon" style="--pc:var(--${esc(g.color)});width:22px;height:22px">${I.dept}</span>${esc(g.name)}</h2>${g.rows.map(d => {
+  out.innerHTML = groups.map(g => `<section class="dgroup"><h2>${deptLead(D.depts.get(g.id), 22)}${esc(g.name)}</h2>${g.rows.map(d => {
     const t = d.active ? todayDailyTask(d.id) : null;
     const may = mayDaily(d);
     const status = !d.active ? '<span class="dst wait">Paused</span>' : !t ? '<span class="dst wait">Opens today</span>' : `<span class="dst ${t.status === 'done' ? 'done' : 'open'}">${t.status === 'done' ? 'Done today' : 'To do today'}</span>`;

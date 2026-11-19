@@ -43,6 +43,7 @@ create table if not exists public.departments (
   name       text not null check (char_length(name) between 1 and 80),
   code       text not null default '' check (char_length(code) <= 12),
   color      text not null default 'c1',
+  icon       text not null default '',
   archived   boolean not null default false,
   created_at timestamptz not null default now()
 );
@@ -53,6 +54,15 @@ create table if not exists public.department_members (
   head          boolean not null default false,  -- department head; does not change their app role
   primary key (department_id, profile_id)
 );
+alter table public.departments add column if not exists icon text not null default '';
+update public.departments set icon = case
+  when name ~* '(maint|engineer|repair)' or code ~* '^mnt$' then 'wrench'
+  when name ~* '(front|desk|recept|concierge)' or code ~* '^fd$' then 'bell'
+  when name ~* '(house|clean|laundry|linen)' or code ~* '^(cln|hk)$' then 'spark'
+  when name ~* '(^|[^a-z])it([^a-z]|$)' or name ~* '(tech|computer|network)' or code ~* '^it$' then 'monitor'
+  when name ~* '(kitchen|chef)' or code ~* '^fb$' then 'utensils'
+  else icon end
+ where icon = '';
 alter table public.department_members add column if not exists head boolean not null default false;
 create index if not exists department_members_profile_idx on public.department_members(profile_id);
 
@@ -1563,8 +1573,9 @@ begin
   if v_id is null or not exists (select 1 from departments where id = v_id) then
     perform public.wtm__require(char_length(btrim(coalesce(p->>'name', ''))) > 0, 'Give the department a name.');
     perform public.wtm__require(not exists (select 1 from departments where lower(name) = lower(btrim(p->>'name')) and not archived), 'A department with that name already exists.');
-    insert into departments (id, name, code, color)
-    values (coalesce(v_id, gen_random_uuid()), left(btrim(p->>'name'), 80), left(btrim(coalesce(p->>'code', '')), 12), coalesce(nullif(p->>'color', ''), 'c1'))
+    insert into departments (id, name, code, color, icon)
+    values (coalesce(v_id, gen_random_uuid()), left(btrim(p->>'name'), 80), left(btrim(coalesce(p->>'code', '')), 12), coalesce(nullif(p->>'color', ''), 'c1'),
+            case when p->>'icon' in ('wrench','bell','spark','monitor','utensils','glass','shield','leaf','wave','coin','bed','dept') then p->>'icon' else '' end)
     returning * into d;
     ch := ch || ('Created department “' || d.name || '”');
   else
@@ -1573,6 +1584,7 @@ begin
       name     = case when p ? 'name' and btrim(p->>'name') <> '' then left(btrim(p->>'name'), 80) else name end,
       code     = case when p ? 'code' then left(btrim(p->>'code'), 12) else code end,
       color    = case when p ? 'color' then p->>'color' else color end,
+      icon     = case when p ? 'icon' and p->>'icon' in ('wrench','bell','spark','monitor','utensils','glass','shield','leaf','wave','coin','bed','dept') then p->>'icon' else icon end,
       archived = case when p ? 'archived' then (p->>'archived')::boolean else archived end
     where id = v_id returning * into d;
     if d.name <> old.name then ch := ch || ('Renamed department “' || old.name || '” → “' || d.name || '”'); end if;

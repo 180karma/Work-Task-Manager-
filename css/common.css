@@ -88,3 +88,5 @@ textarea.field{height:auto;padding:9px 11px;line-height:1.45;resize:vertical}
 .formerr{min-height:20px;padding:8px 11px;border-radius:9px;background:var(--danger-soft);color:var(--danger);font-size:13.5px;font-weight:600}
 .formerr:empty{display:none}
 .fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.taghelp{margin:0;font-size:12.5px;line-height:1.45;color:var(--muted)}
+.taghelp b{font-family:var(--f-mono);font-weight:600;color:var(--ink)}

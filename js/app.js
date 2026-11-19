@@ -1798,7 +1798,8 @@ function renderThread() {
         <div class="linkbar" id="msgLinked"></div>
         <div class="linkbar" id="msgAttach"></div>
         <label class="sr" for="msgBody">Message</label>
-        <textarea class="field" id="msgBody" rows="1" maxlength="4000" placeholder="Write a message… @ person or dept, # task, ^ location" aria-autocomplete="list"></textarea>
+        <textarea class="field" id="msgBody" rows="1" maxlength="4000" placeholder="Write a message…" aria-autocomplete="list"></textarea>
+        <p class="taghelp"><b>@</b> person or department · <b>#</b> task · <b>^</b> place, such as Unit 12</p>
         <div class="row msg-bar"><span class="row tight">${deptSelect}<button type="button" class="btn sm ghost" data-act="msg-stamp">${icon('cal')}Date</button><button type="button" class="btn sm ghost" data-act="msg-pin">${icon('pin')}Pin</button><button type="button" class="btn sm ghost" data-act="msg-photo">${icon('camera')}Photo</button><button type="button" class="btn sm ghost" data-act="msg-link">${icon('link')}Task</button></span><button type="submit" class="btn sm primary">${icon('send')}Send</button></div>
       </form>` : `<div class="tcompose"><p class="muted" style="margin:0;font-size:13px">You can't reply here.</p></div>`}`;
     threadKey = key;
@@ -1844,30 +1845,36 @@ async function sendMessage() {
   if (r) { el.value = ''; autosize(el); UI.linkTask = null; clearMsgAttach(); threadKey = ''; renderMessages(); $('#msgBody') && $('#msgBody').focus(); }
 }
 function openNewMessageSheet() {
-  let target = ALL_CONV, linkTask = null, pin = null, photoFile = null, photoPreview = '';
-  const depts = liveDepts(), groups = liveGroups().filter(g => myGroups().has(g.id)), others = activePeople().filter(p => p.id !== me());
+  let linkTask = null, pin = null, photoFile = null, photoPreview = '';
+  const depts = liveDepts(), groups = liveGroups().filter(g => myGroups().has(g.id)).sort((a, b) => cmpStr(a.name, b.name)), others = activePeople().filter(p => p.id !== me());
+  const byRole = ['it', 'admin', 'supervisor', 'staff'].map(role => ({ role, people: others.filter(p => p.role === role).sort((a, b) => cmpStr(a.full_name || a.email, b.full_name || b.email)) })).filter(g => g.people.length);
+  const leftover = others.filter(p => !ROLE[p.role]).sort((a, b) => cmpStr(a.full_name || a.email, b.full_name || b.email));
+  const whoName = p => esc(p.full_name || p.email) + (p.title ? ' · ' + esc(p.title) : '');
   const S = {
     kind: 'new-msg', focus: '#nm-body',
-    html: () => `${sheetHead('New message', 'Selecting a department is optional — messages can be read by all')}
+    html: () => `${sheetHead('New message', 'Leave the second list empty to send to everyone, or to one department')}
       <div class="sh-body">
-        <div class="fld">
-          <span class="lbl">Department <small class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">(optional — leave on Everyone to send to all)</small></span>
-          <div class="chipline" id="nm-targets">
-            <button type="button" class="tool" data-target="${ALL_CONV}" aria-pressed="true">${icon('people')}<span>Everyone (all)</span></button>
-            ${depts.map(d => { const L = deptLook(d); return `<button type="button" class="tool" data-target="dept:${esc(d.id)}" aria-pressed="false"><i class="pdot" style="--pc:var(--${esc(L.color)})"></i>${icon(L.icon, 'width:15px;height:15px')}<span>${esc(d.name)}</span></button>`; }).join('')}
-          </div>
-        </div>
-        ${groups.length || others.length ? `<div class="fld">
-          <span class="lbl">Or send directly to a group or person <small class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</small></span>
-          <div class="chipline" id="nm-direct">
-            ${groups.map(g => `<button type="button" class="tool" data-target="group:${esc(g.id)}" aria-pressed="false"><i class="pdot" style="--pc:var(--${esc(g.color)})"></i><span>${esc(g.name)}</span></button>`).join('')}
-            ${others.map(p => `<button type="button" class="tool" data-target="user:${esc(p.id)}" aria-pressed="false">${avatar(p.id, 'sm')}<span>${esc(p.full_name || p.email)}</span></button>`).join('')}
-          </div>
-        </div>` : ''}
+        <label class="fld">
+          <span class="lbl" for="nm-dept">Department</span>
+          <select class="field" id="nm-dept">
+            <option value="${ALL_CONV}">Everyone</option>
+            ${depts.map(d => `<option value="dept:${esc(d.id)}">${esc(d.name)}</option>`).join('')}
+          </select>
+        </label>
+        <label class="fld">
+          <span class="lbl" for="nm-who">Group or person</span>
+          <select class="field" id="nm-who">
+            <option value="">No one — use the department above</option>
+            ${groups.length ? `<optgroup label="Groups">${groups.map(g => `<option value="group:${esc(g.id)}">${esc(g.name)}</option>`).join('')}</optgroup>` : ''}
+            ${byRole.map(g => `<optgroup label="${esc(ROLE[g.role].label)}">${g.people.map(p => `<option value="user:${esc(p.id)}">${whoName(p)}</option>`).join('')}</optgroup>`).join('')}
+            ${leftover.length ? `<optgroup label="Other">${leftover.map(p => `<option value="user:${esc(p.id)}">${whoName(p)}</option>`).join('')}</optgroup>` : ''}
+          </select>
+        </label>
         <label class="fld">
           <span class="lbl">Message</span>
           <textarea class="field" id="nm-body" rows="3" maxlength="4000" placeholder="Type your message and press Send…"></textarea>
         </label>
+        <p class="taghelp"><b>@</b> tags a person or department, <b>#</b> links a task, and <b>^</b> tags a place such as Unit 12. A list opens as you type. Arrow keys move through it, and Enter picks.</p>
         <div class="linkbar" id="nm-linked"></div>
         <div class="linkbar" id="nm-attach"></div>
       </div>
@@ -1889,11 +1896,6 @@ function openNewMessageSheet() {
       const el = $('#nm-attach'); if (el) el.innerHTML = attachPreview(pin, photoPreview, 'sheet');
     },
     click: async b => {
-      if (b.dataset.target) {
-        target = b.dataset.target;
-        for (const x of $$('#sheet [data-target]')) x.setAttribute('aria-pressed', String(x.dataset.target === target));
-        return;
-      }
       const k = b.dataset.sh;
       if (k === 'nm-stamp') { insertAtCursor($('#nm-body'), stamp()); return; }
       if (k === 'nm-pin') { openPinPicker(b, pin, next => { pin = next; S.drawAttach(); }); return; }
@@ -1913,6 +1915,7 @@ function openNewMessageSheet() {
       if (k === 'nm-send') {
         const body = $('#nm-body').value.trim();
         if (!body && !pin && !photoFile) { toast('Write a message, add a photo, or drop a pin.'); $('#nm-body').focus(); return; }
+        const target = ($('#nm-who') && $('#nm-who').value) || ($('#nm-dept') ? $('#nm-dept').value : ALL_CONV);
         const [kind, id] = target.split(':');
         b.disabled = true;
         let photo = null;

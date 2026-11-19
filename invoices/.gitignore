@@ -1,0 +1,10 @@
+agent-tools/
+.cursor/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+config.js
+_site/
+supabase/.temp/

@@ -22,7 +22,7 @@
 <link rel="stylesheet" href="css/log.css">
 <link rel="stylesheet" href="css/people.css?v=depticon">
 <link rel="stylesheet" href="css/settings.css?v=facepop">
-<link rel="stylesheet" href="css/board.css">
+<link rel="stylesheet" href="css/board.css?v=feed2">
 <link rel="stylesheet" href="css/invoices.css?v=mobile">
 <link rel="stylesheet" href="css/overlays.css?v=kwmap">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -185,19 +185,27 @@
     <section id="view-board" aria-labelledby="h-board" hidden>
       <div class="viewhead"><h1 id="h-board">Notice board</h1><p id="boardSummary"></p></div>
       <form class="composer" id="noticeAdd" autocomplete="off">
-        <div class="cmp-main">
-          <label class="sr" for="noticeTitle">Notice title</label>
-          <input id="noticeTitle" maxlength="160" placeholder="Notice title — everyone can read this" enterkeyhint="next">
-          <button type="submit" class="btn primary">Post</button>
+        <div class="seg postkind" id="postKind" role="group" aria-label="What to post">
+          <button type="button" data-post="notice" aria-pressed="true">Notice</button>
+          <button type="button" data-post="message" aria-pressed="false">Message</button>
+          <button type="button" data-post="task" aria-pressed="false">Task</button>
         </div>
-        <label class="sr" for="noticeBody">Notice details</label>
+        <div class="cmp-main">
+          <label class="sr" for="noticeTitle" id="noticeTitleLbl">Notice title</label>
+          <input id="noticeTitle" maxlength="160" placeholder="Notice title — everyone can read this" enterkeyhint="next">
+          <button type="submit" class="btn primary" id="postGo">Post</button>
+        </div>
+        <label class="sr" for="noticeBody" id="noticeBodyLbl">Notice details</label>
         <textarea class="field" id="noticeBody" rows="2" maxlength="4000" placeholder="Details (optional)"></textarea>
-        <label class="pinopt"><input type="checkbox" id="noticePin"> Pin to the top</label>
-        <label class="pinopt" for="noticeUntil">Show until <input class="field" id="noticeUntil" type="date" style="width:auto;height:32px"></label>
+        <div class="postopts" id="postNoticeOpts">
+          <label class="pinopt"><input type="checkbox" id="noticePin"> Pin to the top</label>
+          <label class="pinopt" for="noticeUntil">Show until <input class="field" id="noticeUntil" type="date" style="width:auto;height:32px"></label>
+        </div>
+        <div class="postopts" id="postSendOpts" hidden>
+          <label class="pinopt" for="postTo"><span id="postToLbl">To</span> <select class="field sm" id="postTo"></select></label>
+          <label class="pinopt" for="postDue" id="postDueWrap">Due <input class="field" id="postDue" type="date" style="width:auto;height:32px"></label>
+        </div>
       </form>
-      <div class="toolbar">
-        <label class="search grow"><span class="sr">Search notices</span><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg><input class="field" id="noticeSearch" type="search" placeholder="Search notices"></label>
-      </div>
       <div class="board" id="boardOut"></div>
     </section>
 
@@ -312,6 +320,6 @@
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <script src="js/config.js"></script>
 <script src="js/holidays.js?v=cal"></script>
-<script src="js/app.js?v=dockdot"></script>
+<script src="js/app.js?v=feed2"></script>
 </body>
 </html>

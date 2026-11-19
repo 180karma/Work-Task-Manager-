@@ -34,8 +34,25 @@
 .hand{display:flex;flex-direction:column;gap:8px;padding:14px 16px;border:1px solid var(--line);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-sm)}
 .hand h2{margin:0;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
 .hand ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
-.hand li button,.hand li span{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;padding:6px 2px;border:0;background:none;text-align:left;font-size:15px}
+.hand li>button,.hand li>span{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;padding:6px 2px;border:0;background:none;text-align:left;font-size:15px}
 .hand li button{cursor:pointer;border-radius:8px}
 .hand li button:hover{background:var(--sunk)}
 .hand small{font-size:12.5px;color:var(--muted);font-weight:500}
 .drow .checks{margin-top:4px}
+.postkind{align-self:flex-start}
+.postopts{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px}
+#postTo{width:auto;max-width:min(280px,70vw);height:32px}
+.bfeed{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));align-items:start}
+.hand>.muted{margin:0;font-size:13.5px}
+.hand>.btn{align-self:flex-start}
+.hand.stale{box-shadow:inset 3px 0 0 var(--signal),var(--shadow-sm)}
+.hand li button.over small{color:var(--danger)}
+.bmsgs .bmhead{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:14px}
+.bmsgs .bmhead span:not(.av){font-size:12.5px;color:var(--muted)}
+.bmsgs button.unread{background:var(--accent-soft)}
+.bmsgs small{padding-left:2px;overflow-wrap:anywhere}
+.bcal{display:flex;flex-direction:column;gap:8px;padding:14px 16px;border:1px solid var(--line);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-sm)}
+.bcalbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.bcalbar h2{flex:1;min-width:6em;margin:0;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.bcalbar b{font-size:14px}
+.bcal .calday{margin-top:4px;box-shadow:none}

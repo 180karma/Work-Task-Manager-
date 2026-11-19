@@ -181,7 +181,7 @@ const savePP = () => LS.set('wtm.people.v2', JSON.stringify(PP));
 const ALL_ID = '00000000-0000-0000-0000-000000000000';
 const ALL_CONV = 'all:' + ALL_ID;
 const OL = { q: '', tab: 'needed', task: '', deptLock: false };
-const NB = { q: '' };
+const NB = { kind: 'notice' };
 const DY = { q: '', dept: '' };
 const UI = { view: 'tasks', conv: ALL_CONV, msgDept: '', linkTask: null, logLimit: 300, msgPin: null, msgPhotoFile: null, msgPhotoPreview: '' };
 let sb = null, channel = null;
@@ -2552,16 +2552,98 @@ function fillTradeSelect(el, current) {
   if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; }
   el.value = current && Array.from(el.options).some(o => o.value === current) ? current : '';
 }
+const STALE_DAYS = 3;
+const POST_COPY = {
+  notice: { title: 'Notice title — everyone can read this', titleLbl: 'Notice title', body: 'Details (optional)', bodyLbl: 'Notice details', go: 'Post' },
+  message: { title: 'Write a message…', titleLbl: 'Message', body: '', bodyLbl: '', go: 'Send' },
+  task: { title: 'What needs doing?', titleLbl: 'Task title', body: 'Notes (optional)', bodyLbl: 'Task notes', go: 'Add task' }
+};
+function msgForMe(m) {
+  if (m.sender === me()) return false;
+  if (m.to_kind === 'all') return true;
+  if (m.to_kind === 'user') return m.to_id === me();
+  if (m.to_kind === 'dept') return D.depts.has(m.to_id) && myDepts().has(m.to_id);
+  if (m.to_kind === 'group') return myGroups().has(m.to_id);
+  return false;
+}
+function boardTasks() {
+  const md = myDepts(), all = D.rank >= 3;
+  return liveTasks().filter(t => t.status !== 'done' && (all || isMine(t) || taskInDepts(t, md)));
+}
+const isStale = (t, cutoff) => (t.updated_at || t.created_at || 0) < cutoff;
+function boardTaskLine(t, today, note) {
+  const over = t.due && t.due < today;
+  const who = t.assignees.map(assigneeLabel).filter(Boolean).slice(0, 2).join(', ');
+  const bits = [who, t.status === 'doing' || t.status === 'blocked' ? STATUS[t.status] : '', t.due ? (over ? 'Overdue · ' : 'Due ') + dueLabel(t.due) + (t.due_time ? ' ' + hhmm(t.due_time) : '') : '', note || ''].filter(Boolean);
+  return `<li><button type="button" data-open-task="${esc(t.id)}"${over ? ' class="over"' : ''}>${esc(t.title)}${bits.length ? `<small>${esc(bits.join(' · '))}</small>` : ''}</button></li>`;
+}
+function boardMsgLine(m) {
+  const k = convKeyOf(m), unread = m.id > (D.reads[k] || 0);
+  const to = m.to_kind === 'user' ? 'To you' : m.to_kind === 'dept' ? (D.depts.get(m.to_id) || {}).name || 'Department' : m.to_kind === 'group' ? (D.groups.get(m.to_id) || {}).name || 'Group' : 'Everyone';
+  const text = m.body || (m.photo ? 'Photo' : m.pin ? 'Pin' : m.task_id ? 'Linked task' : '');
+  return `<li><button type="button" data-conv="${esc(m.to_kind === 'all' || m.to_kind === 'dept' ? ALL_CONV : k)}"${unread ? ' class="unread"' : ''}><span class="bmhead">${avatar(m.sender, 'sm')}<b>${esc(nameOf(m.sender))}</b><span>→ ${esc(to)} · ${esc(fmtWhen(m.at))}</span></span><small>${esc(trunc(text, 120))}</small></button></li>`;
+}
+function renderPostTo() {
+  const sel = $('#postTo'); if (!sel) return;
+  const task = NB.kind === 'task', md = myDepts();
+  const depts = liveDepts(), mine = depts.filter(d => md.has(d.id)), rest = depts.filter(d => !md.has(d.id));
+  const groups = liveGroups().filter(g => myGroups().has(g.id)).sort((a, b) => cmpStr(a.name, b.name));
+  const others = activePeople().filter(p => p.id !== me());
+  const byRole = ['it', 'admin', 'supervisor', 'staff'].map(role => ({ role, people: others.filter(p => p.role === role).sort((a, b) => cmpStr(a.full_name || '', b.full_name || '')) })).filter(g => g.people.length);
+  const opt = (v, l) => `<option value="${esc(v)}">${esc(l)}</option>`;
+  const html = (task ? opt('user:' + me(), 'Me') : opt(ALL_CONV, 'Everyone'))
+    + (mine.length ? `<optgroup label="My department${mine.length === 1 ? '' : 's'}">${mine.map(d => opt('dept:' + d.id, d.name)).join('')}</optgroup>` : '')
+    + (rest.length ? `<optgroup label="Other departments">${rest.map(d => opt('dept:' + d.id, d.name)).join('')}</optgroup>` : '')
+    + (groups.length ? `<optgroup label="Groups">${groups.map(g => opt('group:' + g.id, g.name)).join('')}</optgroup>` : '')
+    + byRole.map(g => `<optgroup label="${esc(ROLE[g.role].label)}">${g.people.map(p => opt('user:' + p.id, (p.full_name || p.username || '') + (p.title ? ' · ' + p.title : ''))).join('')}</optgroup>`).join('');
+  if (sel.dataset.h !== html) {
+    const keep = sel.value;
+    sel.innerHTML = html; sel.dataset.h = html;
+    sel.value = keep && Array.from(sel.options).some(o => o.value === keep) ? keep : (mine.length ? 'dept:' + mine[0].id : sel.options[0].value);
+  }
+}
+function setPostKind(kind) {
+  NB.kind = POST_COPY[kind] ? kind : 'notice';
+  const c = POST_COPY[NB.kind], msg = NB.kind === 'message';
+  for (const b of $$('#postKind [data-post]')) b.setAttribute('aria-pressed', String(b.dataset.post === NB.kind));
+  const title = $('#noticeTitle');
+  title.placeholder = c.title; title.maxLength = msg ? 4000 : 160;
+  $('#noticeTitleLbl').textContent = c.titleLbl;
+  $('#noticeBody').hidden = msg; $('#noticeBody').placeholder = c.body; $('#noticeBodyLbl').textContent = c.bodyLbl;
+  $('#postGo').textContent = c.go;
+  $('#postNoticeOpts').hidden = NB.kind !== 'notice';
+  $('#postSendOpts').hidden = NB.kind === 'notice';
+  $('#postToLbl').textContent = NB.kind === 'task' ? 'For' : 'To';
+  $('#postDueWrap').hidden = NB.kind !== 'task';
+  $('#postTo').dataset.h = '';
+  renderPostTo();
+}
+function boardCalendarHtml() {
+  const { grid } = calMonth();
+  const title = parseDay(CAL.cursor).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  return `<section class="bcal" aria-label="Calendar">
+    <div class="bcalbar"><h2>Calendar</h2><button type="button" class="iconbtn" data-bcal="prev" aria-label="Previous month">${I.back}</button><b>${esc(title)}</b><button type="button" class="iconbtn" data-bcal="next" aria-label="Next month"><svg class="ico" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button><button type="button" class="btn sm" data-bcal="today">Today</button><button type="button" class="btn sm ghost" data-bcal="open">Open calendar</button></div>
+    <div class="calgrid">${grid}</div>
+    <div class="calday">${calDayHtml(CAL.day)}</div>
+  </section>`;
+}
 function renderBoard() {
-  const q = NB.q.trim().toLowerCase();
-  let list = Array.from(D.notices.values());
-  if (q) list = list.filter(n => (n.title + ' ' + n.body + ' ' + nameOf(n.created_by)).toLowerCase().includes(q));
-  list.sort((a, b) => (b.pinned - a.pinned) || (b.created_at - a.created_at));
-  const pinned = list.filter(n => n.pinned).length;
-  $('#boardSummary').textContent = list.length ? `${list.length} notice${list.length === 1 ? '' : 's'}${pinned ? ` · ${pinned} pinned` : ''}` : 'Everyone can read what is posted here';
-  const out = $('#boardOut');
-  if (!list.length) { out.innerHTML = `<div class="empty"><h2>${q ? 'No notices match' : 'The board is clear'}</h2><p>${q ? 'Try a different search.' : 'Post a notice above. It can be read by everyone, and pinning keeps it at the top.'}</p></div>`; return; }
-  out.innerHTML = list.map(n => {
+  renderPostTo();
+  const today = dayKey(), cutoff = now() - STALE_DAYS * 864e5;
+  const notices = Array.from(D.notices.values()).filter(n => !n.archived_at).sort((a, b) => (b.pinned - a.pinned) || (b.created_at - a.created_at));
+  const msgs = Array.from(D.msgs.values()).filter(msgForMe).sort((a, b) => b.id - a.id).slice(0, 6);
+  const tasks = boardTasks();
+  const stale = tasks.filter(t => isStale(t, cutoff)).sort((a, b) => (a.updated_at || a.created_at) - (b.updated_at || b.created_at));
+  const fresh = tasks.filter(t => !isStale(t, cutoff)).sort((a, b) => smartRank(a, today) - smartRank(b, today) || cmpDue(a, b) || a.priority - b.priority);
+  const unreadMsgs = totalUnread();
+  $('#boardSummary').textContent = [
+    `${tasks.length} open task${tasks.length === 1 ? '' : 's'} for you`,
+    stale.length ? `${stale.length} waiting a while` : '',
+    unreadMsgs ? `${unreadMsgs} unread message${unreadMsgs === 1 ? '' : 's'}` : ''
+  ].filter(Boolean).join(' · ');
+  const days = t => Math.max(STALE_DAYS, Math.floor((now() - (t.updated_at || t.created_at)) / 864e5));
+  const more = (n, shown, go) => n > shown ? `<button type="button" class="btn sm ghost" data-board-go="${go}">See all ${n}</button>` : '';
+  const noticeHtml = notices.map(n => {
     const may = n.created_by === me() || D.rank >= 2;
     return `<article class="notice${n.pinned ? ' pinned' : ''}">
       <h2>${n.pinned ? icon('pin', 'width:14px;height:14px;color:var(--bar-hi)') : ''}${esc(n.title)}</h2>
@@ -2570,6 +2652,13 @@ function renderBoard() {
       ${may ? `<div class="acts"><button type="button" class="btn sm ghost" data-notice-pin="${esc(n.id)}" data-pinned="${n.pinned ? '0' : '1'}">${n.pinned ? 'Unpin' : 'Pin'}</button><button type="button" class="btn sm ghost" data-notice-remove="${esc(n.id)}">Remove</button></div>` : ''}
     </article>`;
   }).join('');
+  $('#boardOut').innerHTML = `${noticeHtml}
+    <div class="bfeed">
+      <section class="hand"><h2>Latest messages for you</h2>${msgs.length ? `<ul class="bmsgs">${msgs.map(boardMsgLine).join('')}</ul>` : '<p class="muted">No messages for you or your department yet.</p>'}<button type="button" class="btn sm ghost" data-board-go="messages">Open messages</button></section>
+      <section class="hand"><h2>Tasks for you and your department</h2>${fresh.length ? `<ul>${fresh.slice(0, 8).map(t => boardTaskLine(t, today)).join('')}</ul>` : `<p class="muted">${stale.length ? 'Nothing new. Older tasks are listed under Waiting a while.' : 'No open tasks for you or your department.'}</p>`}${more(fresh.length, 8, 'tasks')}</section>
+      ${stale.length ? `<section class="hand stale"><h2>Waiting a while</h2><ul>${stale.slice(0, 8).map(t => boardTaskLine(t, today, `untouched ${days(t)} days`)).join('')}</ul>${more(stale.length, 8, 'tasks')}</section>` : ''}
+    </div>
+    ${boardCalendarHtml()}`;
 }
 function orderFromTask(t) {
   setView('orders');
@@ -2929,8 +3018,35 @@ function calItems(day) {
   out.sort((a, b) => (a.time || '99').localeCompare(b.time || '99') || order[a.kind] - order[b.kind] || cmpStr(a.title, b.title));
   return out;
 }
-function renderCalendar() {
+function calMonth() {
   const month = CAL.cursor.slice(0, 7);
+  const lead = (parseDay(CAL.cursor).getDay() + 6) % 7;
+  const start = addDays(CAL.cursor, -lead);
+  let grid = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<div class="calwd">${d}</div>`).join('');
+  const seen = { job: new Set(), event: new Set(), booking: new Set(), holiday: new Set() };
+  for (let i = 0; i < 42; i++) {
+    const day = addDays(start, i);
+    const items = calItems(day);
+    if (day.slice(0, 7) === month) for (const it of items) seen[it.kind].add(it.id);
+    const dots = [...new Set(items.map(it => it.kind))].map(k => `<i class="k-${k}"></i>`).join('');
+    grid += `<button type="button" class="calcell${day.slice(0, 7) === month ? '' : ' out'}${day === dayKey() ? ' today' : ''}${day === CAL.day ? ' on' : ''}" data-cal-day="${day}"><span class="n">${+day.slice(8)}</span><span class="cdots">${dots}</span></button>`;
+  }
+  return { grid, seen };
+}
+function calDayHtml(day) {
+  const list = calItems(day);
+  return `<h3>${esc(parseDay(day).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }))}</h3>`
+    + (list.length ? `<ul>${list.map(it => `<li><button type="button" data-cal-open="${esc(it.kind + ':' + it.id)}"><span class="mark k-${it.kind}"></span><span><span class="ttl${it.done ? ' done' : ''}">${esc(it.title)}</span><span class="sub">${esc(it.sub)}</span></span></button></li>`).join('')}</ul>` : '<p class="muted" style="margin:0">Nothing on this day.</p>');
+}
+function openCalItem(b) {
+  const raw = b.dataset.calOpen, i = raw.indexOf(':'), kind = raw.slice(0, i), id = raw.slice(i + 1);
+  if (kind === 'job' && !id.startsWith('daily:')) { openTask(id, b); return; }
+  const entry = D.calendar.get(id);
+  if (!entry) return;
+  if (UI.view !== 'calendar') { CAL.day = entry.day; setView('calendar'); }
+  if (entry.kind === 'holiday' ? canSupervise() : entry.created_by === me() || canSupervise()) openCalForm(entry.day, entry);
+}
+function renderCalendar() {
   const title = $('#calTitle'); if (title) title.textContent = parseDay(CAL.cursor).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   const sel = $('#calDept');
   if (sel) {
@@ -2942,30 +3058,13 @@ function renderCalendar() {
   }
   const filters = $('#calFilters');
   if (filters) filters.innerHTML = ['job', 'event', 'booking', 'holiday'].map(k => `<button type="button" data-cal-kind="${k}" aria-pressed="${CAL.on[k] ? 'true' : 'false'}"><i class="k-${k}"></i>${k === 'holiday' ? 'Public holidays' : CAL_LABEL[k] + 's'}</button>`).join('');
-  const first = parseDay(CAL.cursor);
-  const lead = (first.getDay() + 6) % 7;
-  const start = addDays(CAL.cursor, -lead);
-  const heads = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<div class="calwd">${d}</div>`).join('');
-  let cells = '';
-  const seen = { job: new Set(), event: new Set(), booking: new Set(), holiday: new Set() };
-  for (let i = 0; i < 42; i++) {
-    const day = addDays(start, i);
-    const items = calItems(day);
-    if (day.slice(0, 7) === month) for (const it of items) seen[it.kind].add(it.id);
-    const dots = [...new Set(items.map(it => it.kind))].map(k => `<i class="k-${k}"></i>`).join('');
-    cells += `<button type="button" class="calcell${day.slice(0, 7) === month ? '' : ' out'}${day === dayKey() ? ' today' : ''}${day === CAL.day ? ' on' : ''}" data-cal-day="${day}"><span class="n">${+day.slice(8)}</span><span class="cdots">${dots}</span></button>`;
-  }
-  const grid = $('#calGrid'); if (grid) grid.innerHTML = heads + cells;
+  const { grid: cells, seen } = calMonth();
+  const grid = $('#calGrid'); if (grid) grid.innerHTML = cells;
   const sum = $('#calSummary');
   const counts = { job: seen.job.size, event: seen.event.size, booking: seen.booking.size, holiday: seen.holiday.size };
   if (sum) sum.textContent = ['job', 'event', 'booking', 'holiday'].filter(k => counts[k]).map(k => `${counts[k]} ${counts[k] === 1 ? CAL_LABEL[k].toLowerCase() : (k === 'holiday' ? 'public holidays' : CAL_LABEL[k].toLowerCase() + 's')}`).join(' · ') || 'Nothing this month';
-  const list = calItems(CAL.day);
   const dayEl = $('#calDay');
-  if (dayEl) {
-    dayEl.className = 'calday';
-    dayEl.innerHTML = `<h3>${esc(parseDay(CAL.day).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }))}</h3>`
-      + (list.length ? `<ul>${list.map(it => `<li><button type="button" data-cal-open="${esc(it.kind + ':' + it.id)}"><span class="mark k-${it.kind}"></span><span><span class="ttl${it.done ? ' done' : ''}">${esc(it.title)}</span><span class="sub">${esc(it.sub)}</span></span></button></li>`).join('')}</ul>` : '<p class="muted" style="margin:0">Nothing on this day.</p>');
-  }
+  if (dayEl) { dayEl.className = 'calday'; dayEl.innerHTML = calDayHtml(CAL.day); }
   const hol = $('#calKind option[value="holiday"]'); if (hol) hol.hidden = !canSupervise();
   const box = $('#calHolBox'); if (box && $('#calKind')) box.hidden = $('#calKind').value !== 'holiday' || !canSupervise();
 }
@@ -3108,11 +3207,7 @@ function wire() {
   $('#calFilters').addEventListener('click', e => { const b = e.target.closest('[data-cal-kind]'); if (!b) return; CAL.on[b.dataset.calKind] = b.getAttribute('aria-pressed') !== 'true'; renderCalendar(); });
   $('#calGrid').addEventListener('click', e => { const b = e.target.closest('[data-cal-day]'); if (!b) return; CAL.day = b.dataset.calDay; renderCalendar(); });
   $('#calDay').addEventListener('click', e => {
-    const b = e.target.closest('[data-cal-open]'); if (!b) return;
-    const raw = b.dataset.calOpen, i = raw.indexOf(':'), kind = raw.slice(0, i), id = raw.slice(i + 1);
-    if (kind === 'job' && !id.startsWith('daily:')) { openTask(id, b); return; }
-    const entry = D.calendar.get(id);
-    if (entry && (entry.kind === 'holiday' ? canSupervise() : entry.created_by === me() || canSupervise())) openCalForm(entry.day, entry);
+    const b = e.target.closest('[data-cal-open]'); if (b) openCalItem(b);
   });
   $('#calKind').addEventListener('change', () => {
     if ($('#calKind').value === 'holiday' && !canSupervise()) { $('#calKind').value = 'event'; return; }
@@ -3217,18 +3312,45 @@ function wire() {
     }
   });
   // notice board
+  $('#postKind').addEventListener('click', e => { const b = e.target.closest('[data-post]'); if (!b) return; setPostKind(b.dataset.post); $('#noticeTitle').focus(); });
   $('#noticeAdd').addEventListener('submit', async e => {
     e.preventDefault();
     const title = $('#noticeTitle').value.trim();
     if (!title) { $('#noticeTitle').focus(); return; }
-    const btn = e.target.querySelector('button[type="submit"]'); btn.disabled = true;
-    const until = $('#noticeUntil').value;
-    const r = await act('wtm_save_notice', { p: { title, body: $('#noticeBody').value.trim(), pinned: $('#noticePin').checked, show_until: isDay(until) ? until : '' } }, 'Notice posted.');
+    const btn = $('#postGo'); btn.disabled = true;
+    const body = $('#noticeBody').value.trim(), dest = $('#postTo').value || ALL_CONV;
+    const [kind, id] = dest.split(':');
+    let r = null;
+    if (NB.kind === 'message') {
+      r = await act('wtm_send_message', { p_kind: kind, p_to: id, p_body: title, p_task: null, p_pin: null, p_photo: null });
+      if (r) toast('Message sent.', { action: 'Open', onAction: () => openConv(kind === 'all' || kind === 'dept' ? ALL_CONV : dest) });
+    } else if (NB.kind === 'task') {
+      const due = $('#postDue').value;
+      r = await act('wtm_save_task', { p: { title, notes: body, priority: 3, due: isDay(due) ? due : null, tags: [], assignees: [{ kind, id }] } });
+      if (r) toast('Task added.', { action: 'Open', onAction: () => openTask(r.id) });
+    } else {
+      const until = $('#noticeUntil').value;
+      r = await act('wtm_save_notice', { p: { title, body, pinned: $('#noticePin').checked, show_until: isDay(until) ? until : '' } }, 'Notice posted.');
+    }
     btn.disabled = false;
-    if (r) { $('#noticeTitle').value = ''; $('#noticeBody').value = ''; $('#noticePin').checked = false; $('#noticeUntil').value = ''; }
+    if (r) { $('#noticeTitle').value = ''; $('#noticeBody').value = ''; $('#noticePin').checked = false; $('#noticeUntil').value = ''; $('#postDue').value = ''; }
   });
-  $('#noticeSearch').addEventListener('input', e => { NB.q = e.target.value; renderBoard(); });
   $('#boardOut').addEventListener('click', async e => {
+    const task = e.target.closest('[data-open-task]'); if (task) { openTask(task.dataset.openTask, task); return; }
+    const conv = e.target.closest('[data-conv]'); if (conv) { openConv(conv.dataset.conv); return; }
+    const go = e.target.closest('[data-board-go]');
+    if (go) { if (go.dataset.boardGo === 'tasks') { TP.scope = 'mine'; TP.tab = 'open'; saveTP(); } setView(go.dataset.boardGo); return; }
+    const day = e.target.closest('[data-cal-day]');
+    if (day) { CAL.day = day.dataset.calDay; if (CAL.day.slice(0, 7) !== CAL.cursor.slice(0, 7)) CAL.cursor = CAL.day.slice(0, 7) + '-01'; renderBoard(); return; }
+    const calOpen = e.target.closest('[data-cal-open]'); if (calOpen) { openCalItem(calOpen); return; }
+    const nav = e.target.closest('[data-bcal]');
+    if (nav) {
+      const k = nav.dataset.bcal;
+      if (k === 'open') { setView('calendar'); return; }
+      if (k === 'today') { CAL.cursor = dayKey().slice(0, 7) + '-01'; CAL.day = dayKey(); }
+      else CAL.cursor = shiftMonth(CAL.cursor, k === 'prev' ? -1 : 1);
+      renderBoard(); return;
+    }
     const pin = e.target.closest('[data-notice-pin]'), rm = e.target.closest('[data-notice-remove]');
     if (pin) { pin.disabled = true; await act('wtm_save_notice', { p: { id: pin.dataset.noticePin, pinned: pin.dataset.pinned === '1' } }); }
     else if (rm) {
@@ -3549,7 +3671,7 @@ function wire() {
     if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) { if (e.key === 'Escape') e.target.blur(); return; }
     const k = e.key.toLowerCase();
     if (k === 'n') { e.preventDefault(); setView('tasks'); $('#qaInput').focus(); }
-    else if (e.key === '/') { e.preventDefault(); const map = { tasks: '#taskSearch', board: '#noticeSearch', orders: '#orderSearch', daily: '#dailySearch', log: '#logSearch', people: '#peopleSearch' }; if (!map[UI.view]) setView('tasks'); $(map[UI.view] || '#taskSearch').focus(); }
+    else if (e.key === '/') { e.preventDefault(); const map = { tasks: '#taskSearch', orders: '#orderSearch', daily: '#dailySearch', log: '#logSearch', people: '#peopleSearch' }; if (!map[UI.view]) setView('tasks'); $(map[UI.view] || '#taskSearch').focus(); }
     else if (k === 't') setView('tasks'); else if (k === 'd') setView('daily'); else if (k === 'c') setView('calendar'); else if (k === 'h') setView('handover'); else if (k === 'm') setView('messages'); else if (k === 'b') setView('board'); else if (k === 'o') setView('orders'); else if (k === 'i') setView('invoices'); else if (k === 'l') setView('log'); else if (k === 'p') setView('people'); else if (k === 's') setView('settings');
   });
   addEventListener('hashchange', () => { const v = location.hash.slice(1); if (v && v !== UI.view && D.ready) setView(v); });

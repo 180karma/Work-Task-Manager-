@@ -39,6 +39,7 @@ alter table public.profiles add column if not exists removed_at timestamptz;
 alter table public.profiles add column if not exists username text not null default '';
 alter table public.profiles add column if not exists phone text not null default '';
 alter table public.profiles add column if not exists emoji text not null default '';
+alter table public.profiles add column if not exists photo text not null default '';
 alter table public.profiles drop constraint if exists profiles_id_fkey;
 create unique index if not exists profiles_username_lower_idx
   on public.profiles (lower(username))
@@ -666,7 +667,7 @@ create or replace function public.wtm__directory() returns jsonb
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
     'profiles', coalesce((select jsonb_agg(jsonb_build_object(
-        'id', p.id, 'email', p.email, 'username', p.username, 'phone', p.phone, 'emoji', p.emoji,
+        'id', p.id, 'email', p.email, 'username', p.username, 'phone', p.phone, 'emoji', p.emoji, 'photo', p.photo,
         'full_name', p.full_name, 'short_name', p.short_name, 'title', p.title,
         'role', p.role, 'active', p.active, 'removed_at', p.removed_at, 'created_at', p.created_at) order by p.full_name)
         from profiles p
@@ -1560,6 +1561,11 @@ begin
   if p ? 'email' and btrim(coalesce(p->>'email', '')) <> '' then
     perform public.wtm__require(p->>'email' ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$', 'Enter a valid email address.');
   end if;
+  if p ? 'photo' and coalesce(p->>'photo', '') <> '' then
+    perform public.wtm__require(
+      p->>'photo' ~ '^[0-9a-f-]{36}/[A-Za-z0-9._-]{1,80}$' and split_part(p->>'photo', '/', 1) in (me::text, p_user::text),
+      'That picture can''t be used.');
+  end if;
   update profiles set
     username   = case when p ? 'username'   then left(btrim(p->>'username'), 40)   else username end,
     full_name  = case when p ? 'full_name'  then left(btrim(p->>'full_name'), 80)  else full_name end,
@@ -1568,6 +1574,7 @@ begin
     email      = case when p ? 'email'      then left(btrim(p->>'email'), 120)     else email end,
     phone      = case when p ? 'phone'      then left(btrim(p->>'phone'), 40)      else phone end,
     emoji      = case when p ? 'emoji'      then left(btrim(p->>'emoji'), 16)      else emoji end,
+    photo      = case when p ? 'photo'      then coalesce(p->>'photo', '')         else photo end,
     role       = nr,
     active     = case when p ? 'active' then (p->>'active')::boolean else active end,
     updated_at = now()

@@ -203,7 +203,11 @@ function pickedEmoji(id) {
   if (!b || b.dataset.face === '-1') return '';
   return FACES[+b.dataset.face] || '';
 }
-const avatar = (id, cls = '') => { const p = prof(id); const face = p && p.emoji; return `<span class="av ${cls}${face ? ' emoji' : ''}" style="--ac:var(--${hashColor(id)})" title="${esc(p ? p.full_name || p.username || p.email : '')}" aria-hidden="true">${face ? esc(face) : esc(initials(p))}</span>`; };
+const avatar = (id, cls = '') => {
+  const p = prof(id), face = p && p.emoji, photo = p && p.photo;
+  const pic = photo ? `<img data-media="wtm-photos:${esc(photo)}" alt="" hidden>` : '';
+  return `<span class="av ${cls}${face ? ' emoji' : ''}${photo ? ' photo' : ''}" style="--ac:var(--${hashColor(id)})" title="${esc(p ? p.full_name || p.username || p.email : '')}" aria-hidden="true">${face ? esc(face) : esc(initials(p))}${pic}</span>`;
+};
 const activePeople = () => Array.from(D.profiles.values()).filter(p => p.active).sort((a, b) => cmpStr(a.full_name || a.email, b.full_name || b.email));
 const liveDepts = () => Array.from(D.depts.values()).filter(d => !d.archived).sort((a, b) => cmpStr(a.name, b.name));
 const liveGroups = () => Array.from(D.groups.values()).filter(g => !g.archived).sort((a, b) => cmpStr(a.name, b.name));
@@ -302,7 +306,7 @@ function pickImageFile() {
     let inp = $('#filePick');
     if (!inp) {
       inp = document.createElement('input');
-      inp.type = 'file'; inp.accept = 'image/jpeg,image/png,image/webp,image/gif'; inp.id = 'filePick'; inp.hidden = true;
+      inp.type = 'file'; inp.accept = 'image/*'; inp.id = 'filePick'; inp.hidden = true;
       document.body.appendChild(inp);
     }
     const done = file => { inp.onchange = null; inp.oncancel = null; resolve(file || null); };
@@ -312,13 +316,45 @@ function pickImageFile() {
     inp.click();
   });
 }
+const IMG_MAX = 800, IMG_QUALITY = 0.5, IMG_LIMIT = 3 * 1024 * 1024;
+function decodeImage(file) {
+  const viaTag = () => new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode')); };
+    img.src = url;
+  });
+  if (!window.createImageBitmap) return viaTag();
+  return createImageBitmap(file, { imageOrientation: 'from-image' }).catch(viaTag);
+}
+async function shrinkImage(file) {
+  let src;
+  try { src = await decodeImage(file); } catch (_) { return null; }
+  const w = src.naturalWidth || src.width, h = src.naturalHeight || src.height;
+  if (!w || !h) return null;
+  const scale = Math.min(1, IMG_MAX / w, IMG_MAX / h);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(w * scale));
+  canvas.height = Math.max(1, Math.round(h * scale));
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
+  if (src.close) src.close();
+  let blob = null;
+  for (let q = IMG_QUALITY; q >= 0.2; q -= 0.1) {
+    blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', q));
+    if (blob && blob.size <= IMG_LIMIT) break;
+  }
+  if (!blob || blob.size > IMG_LIMIT) return null;
+  return new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+}
 async function putImage(bucket, folder, file) {
-  const ext = imageExt(file);
-  if (!ext) { toast('Use a JPEG, PNG, WebP or GIF.'); return null; }
-  if (file.size > 8 * 1024 * 1024) { toast('Images need to be under 8 MB.'); return null; }
-  const type = file.type && file.type.startsWith('image/') ? (file.type === 'image/jpg' ? 'image/jpeg' : file.type) : ('image/' + (ext === 'jpg' ? 'jpeg' : ext));
-  const path = folder + '/' + crypto.randomUUID() + '.' + ext;
-  const { error } = await sb.storage.from(bucket).upload(path, file, { contentType: type, upsert: false });
+  if (!imageExt(file) && !String(file && file.type).startsWith('image/')) { toast('Choose a photo or picture file.'); return null; }
+  const small = await shrinkImage(file);
+  if (!small) { toast('That picture couldn\'t be read. Try a JPEG or PNG.'); return null; }
+  const path = folder + '/' + crypto.randomUUID() + '.jpg';
+  const { error } = await sb.storage.from(bucket).upload(path, small, { contentType: 'image/jpeg', upsert: false });
   if (error) { toast(error.message || 'The image didn\'t upload.'); return null; }
   return path;
 }
@@ -1141,6 +1177,7 @@ function drawPop(first) {
       ${pop.multi ? `<div class="pop-foot"><span class="muted" style="flex:1;font-size:12.5px;align-self:center">Tap to add or remove</span><button type="button" class="btn sm" data-pop="close">Done</button></div>` : ''}`;
     const s = $('#popSearch'); if (s && innerWidth > 640) s.focus();
   } else if ($('#popList')) $('#popList').innerHTML = list;
+  hydrateMedia(el);
 }
 function popItems() { return $$('#popList .pop-item'); }
 function findPopItem(key) { for (const s of pop.sections || []) for (const it of s.items) if (it.key === key) return it; return null; }
@@ -1539,6 +1576,7 @@ function openSheet(s) {
   $('#sheetWrap').hidden = false;
   document.body.style.overflow = 'hidden';
   if (s.mount) s.mount();
+  hydrateMedia($('#sheet'));
   if (s.focus) { const f = $(s.focus); if (f) f.focus(); } else $('#sheet').focus();
 }
 function closeSheet(force) {
@@ -2520,6 +2558,7 @@ function openKeywordLibrary(opener) {
 }
 
 /* ================= settings view ================= */
+const myPhoto = () => ((prof(me()) || D.me || {}).photo) || '';
 function renderSettings() {
   if ($('#settingsOut').contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
   const m = D.me;
@@ -2528,7 +2567,7 @@ function renderSettings() {
       <h2>Your account</h2>
       <div class="profile-head">${avatar(m.id, 'lg')}<div><b>${esc(m.full_name || m.username || m.email)}</b><span class="muted">${esc(m.username || m.email || '')}</span></div></div>
       <dl class="kv"><dt>User name</dt><dd>${esc(m.username || '—')}</dd><dt>Phone</dt><dd>${esc(m.phone || '—')}</dd><dt>Email</dt><dd>${esc(m.email || '—')}</dd><dt>Role</dt><dd>${esc((ROLE[m.role] || {}).label)}</dd><dt>Departments</dt><dd>${esc(deptNames(m.id).join(', ') || '—')}</dd></dl>
-      <div class="row"><button type="button" class="btn" data-act="pick-face" aria-haspopup="dialog">Change picture</button><button type="button" class="btn" data-act="change-pw">Change password</button><button type="button" class="btn ghost" data-act="sign-out">Log out</button></div>
+      <div class="row"><button type="button" class="btn" data-act="upload-photo">${icon('camera')}${myPhoto() ? 'Change photo' : 'Upload photo'}</button>${myPhoto() ? '<button type="button" class="btn ghost" data-act="remove-photo">Remove photo</button>' : ''}<button type="button" class="btn" data-act="pick-face" aria-haspopup="dialog">Choose emoji</button><button type="button" class="btn" data-act="change-pw">Change password</button><button type="button" class="btn ghost" data-act="sign-out">Log out</button></div>
     </div>`;
 }
 function renderTry() {
@@ -3530,10 +3569,28 @@ function wire() {
         html: emojiPickerHtml('me-face', (D.me && D.me.emoji) || ''),
         onFace: async emoji => {
           closePop();
-          if ((D.me.emoji || '') === emoji) return;
-          await act('wtm_admin_update_user', { p_user: me(), p: { emoji } }, 'Picture saved.');
+          const old = myPhoto();
+          if ((D.me.emoji || '') === emoji && !old) return;
+          if (await act('wtm_admin_update_user', { p_user: me(), p: { emoji, photo: '' } }, 'Picture saved.') && old) sb.storage.from('wtm-photos').remove([old]);
         }
       });
+      return;
+    }
+    if (b.dataset.act === 'upload-photo') {
+      const file = await pickImageFile(); if (!file) return;
+      b.disabled = true;
+      const old = myPhoto(), path = await putImage('wtm-photos', me(), file);
+      if (!path) { b.disabled = false; return; }
+      const ok = await act('wtm_admin_update_user', { p_user: me(), p: { photo: path } }, 'Photo saved.');
+      b.disabled = false;
+      if (!ok) sb.storage.from('wtm-photos').remove([path]);
+      else if (old) sb.storage.from('wtm-photos').remove([old]);
+      return;
+    }
+    if (b.dataset.act === 'remove-photo') {
+      const old = myPhoto(); b.disabled = true;
+      if (await act('wtm_admin_update_user', { p_user: me(), p: { photo: '' } }, 'Photo removed.') && old) sb.storage.from('wtm-photos').remove([old]);
+      b.disabled = false;
       return;
     }
     if (b.dataset.act === 'change-pw') showChangePassword(false);

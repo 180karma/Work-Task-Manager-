@@ -61,6 +61,8 @@ textarea.field{height:auto;padding:9px 11px;line-height:1.45;resize:vertical}
 .av.sm.emoji{font-size:14px}
 .av.lg.emoji{font-size:30px}
 .av.sm{width:20px;height:20px;font-size:8.5px}
+.av.photo{position:relative;overflow:hidden}
+.av.photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%}
 .avs{display:inline-flex}
 .avs .av{box-shadow:0 0 0 2px var(--surface)}
 .avs .av + .av{margin-left:-6px}

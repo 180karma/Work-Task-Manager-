@@ -316,7 +316,8 @@ function pickImageFile() {
     inp.click();
   });
 }
-const IMG_MAX = 800, IMG_QUALITY = 0.5, IMG_LIMIT = 3 * 1024 * 1024;
+const IMG_PHOTO = { long: 800, short: 800, quality: 0.5, limit: 3 * 1024 * 1024 };
+const IMG_MAP = { long: 3000, short: 2000, quality: 0.85, limit: 5 * 1024 * 1024 };
 function decodeImage(file) {
   const viaTag = () => new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file), img = new Image();
@@ -327,12 +328,12 @@ function decodeImage(file) {
   if (!window.createImageBitmap) return viaTag();
   return createImageBitmap(file, { imageOrientation: 'from-image' }).catch(viaTag);
 }
-async function shrinkImage(file) {
+async function shrinkImage(file, opt = IMG_PHOTO) {
   let src;
   try { src = await decodeImage(file); } catch (_) { return null; }
   const w = src.naturalWidth || src.width, h = src.naturalHeight || src.height;
   if (!w || !h) return null;
-  const scale = Math.min(1, IMG_MAX / w, IMG_MAX / h);
+  const scale = Math.min(1, opt.long / Math.max(w, h), opt.short / Math.min(w, h));
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(w * scale));
   canvas.height = Math.max(1, Math.round(h * scale));
@@ -342,16 +343,16 @@ async function shrinkImage(file) {
   ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
   if (src.close) src.close();
   let blob = null;
-  for (let q = IMG_QUALITY; q >= 0.2; q -= 0.1) {
+  for (let q = opt.quality; q >= 0.2; q -= 0.1) {
     blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', q));
-    if (blob && blob.size <= IMG_LIMIT) break;
+    if (blob && blob.size <= opt.limit) break;
   }
-  if (!blob || blob.size > IMG_LIMIT) return null;
+  if (!blob || blob.size > opt.limit) return null;
   return new File([blob], 'photo.jpg', { type: 'image/jpeg' });
 }
 async function putImage(bucket, folder, file) {
   if (!imageExt(file) && !String(file && file.type).startsWith('image/')) { toast('Choose a photo or picture file.'); return null; }
-  const small = await shrinkImage(file);
+  const small = await shrinkImage(file, bucket === 'wtm-maps' ? IMG_MAP : IMG_PHOTO);
   if (!small) { toast('That picture couldn\'t be read. Try a JPEG or PNG.'); return null; }
   const path = folder + '/' + crypto.randomUUID() + '.jpg';
   const { error } = await sb.storage.from(bucket).upload(path, small, { contentType: 'image/jpeg', upsert: false });

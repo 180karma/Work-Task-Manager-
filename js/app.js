@@ -1324,6 +1324,44 @@ function unreadIn(conv) {
   return n;
 }
 function totalUnread() { const u = me(); let n = 0; for (const m of D.msgs.values()) if (m.sender !== u && m.id > (D.reads[convKeyOf(m)] || 0)) n++; return n; }
+const SEEN_KEY = 'wtm.seen.v1';
+function newestAt(view) {
+  let max = 0;
+  const take = t => { if (t > max) max = t; };
+  if (view === 'tasks') { for (const t of liveTasks()) take(t.created_at || 0); }
+  else if (view === 'board') { for (const n of D.notices.values()) if (!n.archived_at) take(n.created_at || 0); }
+  else if (view === 'orders') { for (const o of D.orders.values()) take(o.created_at || 0); }
+  return max;
+}
+function seenMap() {
+  const s = LS.json(SEEN_KEY) || {};
+  let changed = false;
+  for (const v of ['tasks', 'board', 'orders']) if (s[v] == null) { s[v] = newestAt(v); changed = true; }
+  if (changed) LS.set(SEEN_KEY, JSON.stringify(s));
+  return s;
+}
+function markSeen(view) {
+  const s = seenMap(), at = newestAt(view);
+  if ((s[view] || 0) >= at) return;
+  s[view] = at;
+  LS.set(SEEN_KEY, JSON.stringify(s));
+}
+function freshCount(view) {
+  const since = seenMap()[view] || 0, u = me();
+  let n = 0;
+  if (view === 'tasks') { for (const t of liveTasks()) if (t.created_by !== u && (t.created_at || 0) > since) n++; }
+  else if (view === 'board') { for (const item of D.notices.values()) if (!item.archived_at && item.created_by !== u && (item.created_at || 0) > since) n++; }
+  else if (view === 'orders') { for (const o of D.orders.values()) if (o.created_by !== u && (o.created_at || 0) > since) n++; }
+  return n;
+}
+function paintBadge(ids, n) {
+  const label = n > 99 ? '99+' : String(n);
+  for (const id of ids) {
+    const el = $(id); if (!el) continue;
+    el.hidden = !n;
+    el.textContent = n ? label : '';
+  }
+}
 function renderChrome() {
   if (!D.ready) return;
   const el = $('#sync'); let cls = 'ok', txt = 'Live', tip = 'Changes from others appear as they happen.';
@@ -1333,8 +1371,12 @@ function renderChrome() {
   el.className = 'sync ' + cls; el.title = tip; el.lastElementChild.textContent = txt;
   $('#meBtn').innerHTML = D.me ? avatar(D.me.id) : '';
   for (const b of $$('#nav button[data-view], #dock button')) { if (b.dataset.view === UI.view) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }
+  if (UI.view === 'tasks' || UI.view === 'board' || UI.view === 'orders') markSeen(UI.view);
   const un = totalUnread(), label = un > 99 ? '99+' : String(un);
   for (const nb of [$('#navUnread'), $('#dockUnread')]) { if (!nb) continue; nb.hidden = !un; nb.textContent = label; }
+  paintBadge(['#navTaskNew', '#dockTaskNew'], freshCount('tasks'));
+  paintBadge(['#navBoardNew', '#dockBoardNew'], freshCount('board'));
+  paintBadge(['#navOrderNew', '#dockOrderNew'], freshCount('orders'));
   $('#railFoot').innerHTML = D.me ? `Signed in as <b>${esc(D.me.full_name || D.me.email)}</b> · ${esc((ROLE[D.me.role] || {}).label || '')}<br>Press <span class="mono">N</span> for a new task, <span class="mono">/</span> to search.` : '';
   renderStats(); renderClock();
 }

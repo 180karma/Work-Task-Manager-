@@ -27,6 +27,8 @@ const server = createServer((req, res) => {
 await new Promise((ok) => server.listen(0, '127.0.0.1', ok));
 const base = `http://127.0.0.1:${server.address().port}/`;
 
+const WTM_SUPABASE_JS = readFileSync(join(root, 'index.html'), 'utf8').match(/https:\/\/cdn\.jsdelivr\.net\/npm\/@supabase\/supabase-js@[^"]+/)[0];
+
 // Stands in for the supabase-js UMD build: one signed-in admin and an empty workspace.
 const FAKE_SUPABASE = `
 (() => {
@@ -49,11 +51,12 @@ const FAKE_SUPABASE = `
   }) };
 })();`;
 
-const VIEWPORTS = [
+const ALL_VIEWPORTS = [
   { name: 'desktop', width: 1440, height: 900, scheme: 'light' },
   { name: 'tablet', width: 1024, height: 768, scheme: 'dark' },
   { name: 'phone', width: 390, height: 844, scheme: 'light' },
 ];
+const VIEWPORTS = ALL_VIEWPORTS.filter((v) => !process.env.VIEWPORT || v.name === process.env.VIEWPORT);
 const WTM_VIEWS = ['tasks', 'daily', 'calendar', 'handover', 'messages', 'board', 'orders', 'invoices', 'log', 'people', 'settings'];
 
 let failures = 0;
@@ -78,14 +81,16 @@ for (const vp of VIEWPORTS) {
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  page.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errors.push(m.text()));
+  // Every outside request is blocked, which browsers log as load, CORS or integrity errors.
+  const BLOCKED = /Failed to load resource|CORS request did not succeed|integrity attribute/;
+  page.on('console', (m) => m.type() === 'error' && !BLOCKED.test(m.text()) && errors.push(m.text()));
   await page.route(/^https?:/, (r) => {
     const url = r.request().url();
     if (url.startsWith(base)) {
       if (url.includes('/js/config.js')) return r.fulfill({ contentType: 'text/javascript', body: 'window.WTM_CONFIG = { url: "https://example.supabase.co", anonKey: "anon", invoicesUrl: "about:blank" };' });
       return r.continue();
     }
-    if (url.includes('@supabase/supabase-js')) return r.fulfill({ contentType: 'text/javascript', body: FAKE_SUPABASE });
+    if (url === WTM_SUPABASE_JS) return r.fulfill({ contentType: 'text/javascript', body: FAKE_SUPABASE });
     return r.abort();
   });
   const view = () => page.evaluate(() => location.hash.slice(1));

@@ -108,9 +108,10 @@ function guessDeptIcon(d) {
   if (/\b(room|rooms)\b/.test(s)) return 'bed';
   return 'dept';
 }
+const DEPT_PASTEL = { c1: 'd1', c2: 'd2', c3: 'd3', c4: 'd4', c5: 'd5', c6: 'd6', c7: 'd7', c8: 'd8' };
 function deptLook(d) {
   const key = d && d.icon && I[d.icon] ? d.icon : guessDeptIcon(d);
-  return { icon: key, color: (d && d.color) || 'c8' };
+  return { icon: key, color: DEPT_PASTEL[(d && d.color) || 'c1'] || 'd1' };
 }
 function deptChipHtml(d, text) {
   const L = deptLook(d);
@@ -2101,7 +2102,7 @@ function renderPeople() {
 }
 const checklistHtml = (id, items, selected) => `<div class="checklist" id="${id}">${items.map(it => `<label><input type="checkbox" value="${esc(it.id)}"${selected.has(it.id) ? ' checked' : ''}>${it.lead || ''}<span>${esc(it.label)}</span>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</label>`).join('')}</div>`;
 const checked = id => $$(`#${id} input:checked`).map(i => i.value);
-const swatchHtml = (id, cur) => `<div class="swatches" id="${id}" role="radiogroup" aria-label="Colour">${COLORS.map(c => `<button type="button" style="--pc:var(--${c})" data-color="${c}" aria-pressed="${c === cur}" aria-label="Colour ${c.slice(1)}"></button>`).join('')}</div>`;
+const swatchHtml = (id, cur, pastel) => `<div class="swatches" id="${id}" role="radiogroup" aria-label="Colour">${COLORS.map(c => `<button type="button" style="--pc:var(--${pastel ? (DEPT_PASTEL[c] || 'd1') : c})" data-color="${c}" aria-pressed="${c === cur}" aria-label="Colour ${c.slice(1)}"></button>`).join('')}</div>`;
 function personSheet(id) {
   const p = prof(id); if (!p) return;
   const manage = canManage(p) || (D.rank === 4);
@@ -2238,7 +2239,7 @@ function deptSheet(id) {
         <div class="fgrid"><label class="fld"><span class="lbl">Name</span><input class="field" id="dp-name" maxlength="80" value="${esc(d ? d.name : '')}"></label>
         <label class="fld"><span class="lbl">Short code</span><input class="field" id="dp-code" maxlength="12" value="${esc(d ? d.code : '')}" placeholder="e.g. MNT"></label></div>
         <div class="fld"><span class="lbl">Icon</span><div class="swatches icons" id="dp-icon" role="radiogroup" aria-label="Icon">${DEPT_ICONS.map(k => `<button type="button" data-icon="${k}" aria-pressed="${k === iconKey}" aria-label="${esc(DEPT_ICON_LABEL[k])}">${icon(k)}</button>`).join('')}</div></div>
-        <div class="fld"><span class="lbl">Colour</span>${swatchHtml('dp-color', color)}</div>
+        <div class="fld"><span class="lbl">Colour</span>${swatchHtml('dp-color', color, true)}</div>
         <div class="fld"><span class="lbl">Members</span>${checklistHtml('dp-members', activePeople().map(p => ({ id: p.id, label: p.full_name || p.email, sub: (ROLE[p.role] || {}).label, lead: avatar(p.id, 'sm') })), d ? membersOfDept(id) : new Set())}</div>
         <div class="fld"><span class="lbl">Department head</span><p class="muted" style="margin:0 0 6px;font-size:13px">They keep their role. An order for this department tags the head.</p>${checklistHtml('dp-heads', activePeople().map(p => ({ id: p.id, label: p.full_name || p.email, sub: (ROLE[p.role] || {}).label, lead: avatar(p.id, 'sm') })), d ? headsOfDept(id) : new Set())}</div>
         ${d ? `<div class="row">${d.archived ? `<button type="button" class="btn" data-sh="unarchive">Restore department</button>` : `<button type="button" class="btn danger" data-sh="archive">Archive department</button>`}<span class="muted" style="font-size:13px">Archived departments stop receiving tasks and messages. Their history stays.</span></div>` : ''}

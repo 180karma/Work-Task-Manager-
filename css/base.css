@@ -24,6 +24,8 @@
   --shadow-accent:0 1px 2px rgba(11,52,77,.14),0 6px 16px rgba(14,127,166,.24),inset 0 1px 0 rgba(255,255,255,.25);
   --bg-glow:radial-gradient(1200px 560px at 8% -10%,rgba(28,169,201,.14),transparent 60%),radial-gradient(900px 500px at 96% 0%,rgba(120,200,235,.16),transparent 58%);
   --c1:#0E7FA6; --c2:#2F5DA8; --c3:#B86206; --c4:#84408A; --c5:#BE3420; --c6:#167782; --c7:#606D16; --c8:#505F6B;
+  /* Department marks only. These stay pastel in both themes and are not the app colours. */
+  --d1:#C26B86; --d2:#D08958; --d3:#C4A24A; --d4:#6E9A74; --d5:#5E9A90; --d6:#8E74B0; --d7:#D07A72; --d8:#A67A94;
   --f-display:"Archivo","Arial Narrow",system-ui,sans-serif;
   --f-body:"Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;

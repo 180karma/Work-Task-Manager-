@@ -1,0 +1,5 @@
+/* Invoices: the Invoice Scraper in a frame */
+.invframe{display:block;width:100%;height:calc(100dvh - 210px);min-height:480px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:var(--shadow-xs)}
+@media (min-width:900px){
+  .invframe{height:calc(100dvh - 120px)}
+}

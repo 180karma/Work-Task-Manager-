@@ -4,7 +4,7 @@
 /* ================= connection =================
    URL and anon key are injected by js/config.js (generated from .env). */
 const injected = window.WTM_CONFIG || {};
-const CONFIG = { url: injected.url || '', anonKey: injected.anonKey || '' };
+const CONFIG = { url: injected.url || '', anonKey: injected.anonKey || '', invoicesUrl: injected.invoicesUrl || '' };
 
 /* ================= utilities ================= */
 const $ = (s, r = document) => r.querySelector(s);
@@ -770,13 +770,44 @@ function mentionChoices(q, taken) {
   if (!n) return rows.filter(r => r.kind === 'dept').slice(0, 4).concat(rows.filter(r => r.kind === 'user').slice(0, 5), rows.filter(r => r.kind === 'group').slice(0, 2)).slice(0, 8);
   return rows.slice(0, 8);
 }
+function taskChoices(q) {
+  const n = String(q || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+  const norm = s => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+  const rows = [];
+  for (const t of liveTasks()) {
+    if (t.status === 'done') continue;
+    const a = norm(t.title), s = !n ? 1 : a.startsWith(n) ? 3 : a.includes(n) ? 2 : 0; if (!s) continue;
+    rows.push({ kind: 'task', id: t.id, label: t.title, sub: [STATUS[t.status], t.due ? 'Due ' + dueLabel(t.due) : ''].filter(Boolean).join(' · '), score: s, at: t.updated_at, lead: icon('task', 'width:18px;height:18px;color:var(--faint)') });
+  }
+  rows.sort((a, b) => b.score - a.score || b.at - a.at);
+  return rows.slice(0, 8);
+}
+function placeChoices(q) {
+  const n = String(q || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+  const norm = s => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+  const rows = [], seen = new Set();
+  const add = (label, sub, names) => {
+    const k = norm(label); if (!k || seen.has(k)) return;
+    let s = !n ? 1 : 0;
+    for (const f of names) { const a = norm(f); if (a.startsWith(n)) s = 3; else if (s < 2 && a.includes(n)) s = 2; }
+    if (!s) return;
+    seen.add(k);
+    rows.push({ kind: 'place', label, token: label.replace(/\s+/g, ''), sub, score: s, lead: icon('pin', 'width:18px;height:18px;color:var(--faint)') });
+  };
+  for (const r of D.rooms) add(r.name, 'Room', [r.name].concat(r.aliases || []));
+  for (const l of liveLocations()) add(l.name, 'Location', [l.name]);
+  const m = n && String(q).match(new RegExp('^' + ROOM_RX.source + '$', 'iu'));
+  if (m) { const label = `${ROOM_WORDS[m[1].toLowerCase()]} ${m[2].toUpperCase()}`; if (!seen.has(norm(label))) { seen.add(norm(label)); rows.unshift({ kind: 'place', label, token: label.replace(/\s+/g, ''), sub: 'Room', score: 4, lead: icon('pin', 'width:18px;height:18px;color:var(--faint)') }); } }
+  rows.sort((a, b) => b.score - a.score || cmpStr(a.label, b.label));
+  return rows.slice(0, 8);
+}
 let mention = null;
-function mentionAt(input) {
+function mentionAt(input, chars = '@') {
   if (!input || (input.selectionEnd != null && input.selectionStart !== input.selectionEnd)) return null;
   const c = input.selectionStart ?? input.value.length;
-  const m = input.value.slice(0, c).match(/(?:^|\s)@([^\s@]*)$/);
+  const m = input.value.slice(0, c).match(new RegExp(`(?:^|\\s)([${chars}])([^\\s${chars}]*)$`));
   if (!m) return null;
-  return { start: c - m[1].length - 1, q: m[1] };
+  return { start: c - m[2].length - 1, q: m[2], ch: m[1] };
 }
 function closeMention() {
   const el = $('#mention');
@@ -797,9 +828,10 @@ function placeMention() {
 }
 function drawMention() {
   const el = $('#mention'); if (!mention || !el) return;
-  const labels = { dept: 'Departments', user: 'Staff', group: 'Groups' };
+  const labels = { dept: 'Departments', user: 'Staff', group: 'Groups', task: 'Tasks', place: 'Locations' };
+  const none = { '#': 'No open task matches', '^': 'No room or location matches' }[mention.ch] || 'No department or staff matches';
   let html = '', last = '';
-  if (!mention.items.length) html = `<div class="mention-empty">No department or staff matches “${esc(mention.q)}”.</div>`;
+  if (!mention.items.length) html = `<div class="mention-empty">${none} “${esc(mention.q)}”.</div>`;
   mention.items.forEach((it, i) => {
     if (it.kind !== last) { last = it.kind; html += `<div class="mention-sec">${labels[it.kind]}</div>`; }
     const on = i === mention.hl;
@@ -814,23 +846,24 @@ function drawMention() {
   else mention.input.removeAttribute('aria-activedescendant');
   placeMention();
 }
-function syncMention(input, mode, onPick, taken) {
+function syncMention(input, mode, onPick, taken, chars = '@') {
   if (!input || document.activeElement !== input) { if (mention && mention.input === input) closeMention(); return; }
-  const at = mentionAt(input);
+  const at = mentionAt(input, chars);
   if (!at) { if (mention && mention.input === input) closeMention(); return; }
-  const items = mentionChoices(at.q, taken);
-  const hl = mention && mention.input === input ? Math.min(mention.hl, Math.max(0, items.length - 1)) : 0;
-  mention = { input, mode, onPick, items, hl, q: at.q };
+  const items = at.ch === '#' ? taskChoices(at.q) : at.ch === '^' ? placeChoices(at.q) : mentionChoices(at.q, taken);
+  const same = mention && mention.input === input && mention.ch === at.ch;
+  const hl = same ? Math.min(mention.hl, Math.max(0, items.length - 1)) : 0;
+  mention = { input, mode, onPick, items, hl, q: at.q, ch: at.ch, chars };
   drawMention();
 }
 function acceptMention(index) {
   if (!mention || !mention.items.length) return;
   const item = mention.items[index]; if (!item) return;
-  const input = mention.input, mode = mention.mode, onPick = mention.onPick, at = mentionAt(input);
-  if (at && (mode === 'token' || mode === 'title')) {
+  const input = mention.input, mode = mention.mode, onPick = mention.onPick, at = mentionAt(input, mention.chars);
+  if (at && (mode === 'token' || mode === 'title' || mode === 'msg')) {
     const v = input.value, end = at.start + 1 + at.q.length;
-    if (mode === 'token') {
-      const insert = '@' + mentionToken(item) + ' ';
+    if (mode === 'token' || mode === 'msg') {
+      const insert = item.kind === 'task' ? '' : item.kind === 'place' ? '^' + item.token + ' ' : '@' + mentionToken(item) + ' ';
       input.value = v.slice(0, at.start) + insert + v.slice(end);
       const pos = at.start + insert.length;
       input.setSelectionRange(pos, pos);
@@ -841,7 +874,7 @@ function acceptMention(index) {
     }
   } else if (mode === 'field') input.value = '';
   closeMention();
-  if (mode === 'token') input.dispatchEvent(new Event('input', { bubbles: true }));
+  if (mode === 'token' || mode === 'msg') input.dispatchEvent(new Event('input', { bubbles: true }));
   if (onPick) onPick(item);
   if (mode === 'title' && document.contains(input)) input.dispatchEvent(new Event('input', { bubbles: true }));
 }
@@ -1204,6 +1237,7 @@ function renderNow() {
   else if (UI.view === 'messages') renderMessages();
   else if (UI.view === 'board') renderBoard();
   else if (UI.view === 'orders') renderOrders();
+  else if (UI.view === 'invoices') renderInvoices();
   else if (UI.view === 'daily') renderDaily();
   else if (UI.view === 'calendar') renderCalendar();
   else if (UI.view === 'handover') renderHandover();
@@ -1674,6 +1708,7 @@ function renderMessages() {
   $('#msgLayout').classList.toggle('open', !!UI.conv);
   renderThread();
 }
+const msgHtml = s => String(s).split(/((?:^|(?<=\s))[@^][^\s@#^]+)/).map((p, i) => i % 2 ? `<b class="mtag">${esc(p)}</b>` : esc(p)).join('');
 let threadKey = '';
 function renderThread() {
   const th = $('#thread');
@@ -1696,7 +1731,7 @@ function renderThread() {
       const fromLbl = !mine && c.kind !== 'user'
         ? `${esc(nameOf(m.sender))}${isAll && deptObj ? ` · <span class="dept-tag">${esc(deptObj.name)}</span>` : ''}`
         : (mine && isAll && deptObj ? `<span class="dept-tag">To ${esc(deptObj.name)}</span>` : '');
-      body += `<div class="bub${mine ? ' me' : ''}">${fromLbl ? `<span class="from">${fromLbl}</span>` : ''}${m.body ? `<span class="body">${esc(m.body)}</span>` : ''}${m.photo ? shotImg(m.photo) : ''}${m.pin ? pinFigure(m.pin, 'mini') : ''}${m.task_id ? `<button type="button" class="tlink" data-open-task="${esc(m.task_id)}">${icon('task', 'width:14px;height:14px')}${esc(t ? trunc(t.title, 50) : 'Linked task')}</button>` : ''}<span class="at">${esc(fmtTime(m.at))}</span></div>`;
+      body += `<div class="bub${mine ? ' me' : ''}">${fromLbl ? `<span class="from">${fromLbl}</span>` : ''}${m.body ? `<span class="body">${msgHtml(m.body)}</span>` : ''}${m.photo ? shotImg(m.photo) : ''}${m.pin ? pinFigure(m.pin, 'mini') : ''}${m.task_id ? `<button type="button" class="tlink" data-open-task="${esc(m.task_id)}">${icon('task', 'width:14px;height:14px')}${esc(t ? trunc(t.title, 50) : 'Linked task')}</button>` : ''}<span class="at">${esc(fmtTime(m.at))}</span></div>`;
     }
     const depts = liveDepts();
     const deptSelect = isAll && depts.length ? `<label class="msg-dept-opt"><span class="sr">Department (optional)</span><select class="field sm" id="msgDept" title="Optional: tag a department (still read by all)"><option value="">Dept: Optional (All)</option>${depts.map(d => `<option value="${esc(d.id)}"${UI.msgDept === d.id ? ' selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>` : '';
@@ -1706,7 +1741,7 @@ function renderThread() {
         <div class="linkbar" id="msgLinked"></div>
         <div class="linkbar" id="msgAttach"></div>
         <label class="sr" for="msgBody">Message</label>
-        <textarea class="field" id="msgBody" rows="1" maxlength="4000" placeholder="Write a message, or add a photo or a pin…"></textarea>
+        <textarea class="field" id="msgBody" rows="1" maxlength="4000" placeholder="Write a message… @ person or dept, # task, ^ location" aria-autocomplete="list"></textarea>
         <div class="row msg-bar"><span class="row tight">${deptSelect}<button type="button" class="btn sm ghost" data-act="msg-stamp">${icon('cal')}Date</button><button type="button" class="btn sm ghost" data-act="msg-pin">${icon('pin')}Pin</button><button type="button" class="btn sm ghost" data-act="msg-photo">${icon('camera')}Photo</button><button type="button" class="btn sm ghost" data-act="msg-link">${icon('link')}Task</button></span><button type="submit" class="btn sm primary">${icon('send')}Send</button></div>
       </form>` : `<div class="tcompose"><p class="muted" style="margin:0;font-size:13px">You can't reply here.</p></div>`}`;
     threadKey = key;
@@ -2459,6 +2494,14 @@ function renderOrderLink() {
   const t = OL.task && D.tasks.get(OL.task);
   el.innerHTML = t && !t.deleted_at ? `<span class="dchip">${icon('link')}<span class="lbltxt">For ${esc(trunc(t.title, 42))}</span><button type="button" class="x" data-order-unlink aria-label="Remove the task link">${icon('close', 'width:13px;height:13px')}</button></span>` : '';
 }
+// The scraper keeps its own sign-in; the frame loads on first visit and stays loaded so a scan survives switching views.
+function renderInvoices() {
+  const url = CONFIG.invoicesUrl, f = $('#invFrame');
+  $('#invNone').hidden = !!url; $('#invOpen').hidden = f.hidden = !url;
+  if (!url) return;
+  $('#invOpen').href = url;
+  if (!f.getAttribute('src')) f.src = url;
+}
 function renderOrders() {
   fillTradeSelect($('#orderTrade'), $('#orderTrade').value);
   fillDeptSelect($('#orderDept'), $('#orderDept') && $('#orderDept').value, 'Department');
@@ -2742,7 +2785,13 @@ function projectCounts(id) {
 
 /* ================= calendar ================= */
 const CAL_LABEL = { job: 'Job', event: 'Event', booking: 'Booking', holiday: 'Public holiday' };
-const CAL = { cursor: dayKey().slice(0, 7) + '-01', day: dayKey(), on: { job: true, event: true, booking: true, holiday: true }, edit: null };
+const CAL = { cursor: dayKey().slice(0, 7) + '-01', day: dayKey(), on: { job: true, event: true, booking: true, holiday: true }, edit: null, dept: LS.get('wtm.cal.dept') || 'mine' };
+// null = every department; 'mine' falls back to everything for people with no department.
+function calDepts() {
+  if (CAL.dept === 'mine') return myDepts().size ? myDepts() : null;
+  return CAL.dept !== 'all' && D.depts.has(CAL.dept) ? new Set([CAL.dept]) : null;
+}
+const taskInDepts = (t, ids) => t.assignees.some(a => (a.kind === 'dept' && ids.has(a.id)) || (a.kind === 'user' && Array.from(deptsOf(a.id)).some(id => ids.has(id))));
 function shiftMonth(s, n) { const d = parseDay(s.slice(0, 7) + '-01'); d.setMonth(d.getMonth() + n); return dayKey(d); }
 function dailyOnDay(id, day) { for (const t of D.tasks.values()) if (t.daily_id === id && t.daily_on === day && !t.deleted_at) return t; return null; }
 function calSpan(entry, day) {
@@ -2751,13 +2800,14 @@ function calSpan(entry, day) {
   return day >= entry.day && day <= end && day <= addDays(entry.day, 45);
 }
 function calItems(day) {
-  const out = [];
+  const out = [], ds = calDepts();
   if (CAL.on.job) {
-    for (const t of liveTasks()) if (t.due === day) out.push({ kind: 'job', id: t.id, title: t.title, time: t.due_time, done: t.status === 'done', sub: t.status === 'done' ? 'Done' : (t.due_time || 'Job') });
+    for (const t of liveTasks()) if (t.due === day && (!ds || taskInDepts(t, ds))) out.push({ kind: 'job', id: t.id, title: t.title, time: t.due_time, done: t.status === 'done', sub: t.status === 'done' ? 'Done' : (t.due_time || 'Job') });
     if (day >= dayKey()) {
       const wd = parseDay(day).getDay();
       for (const d of D.daily.values()) {
         if (d.archived_at || d.active === false) continue;
+        if (ds && !ds.has(d.department_id)) continue;
         if (!(d.weekdays || []).map(Number).includes(wd)) continue;
         if (dailyOnDay(d.id, day)) continue;
         const dept = (D.depts.get(d.department_id) || {}).name || '';
@@ -2776,6 +2826,14 @@ function calItems(day) {
 function renderCalendar() {
   const month = CAL.cursor.slice(0, 7);
   const title = $('#calTitle'); if (title) title.textContent = parseDay(CAL.cursor).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const sel = $('#calDept');
+  if (sel) {
+    const mine = Array.from(myDepts()).map(id => D.depts.get(id)).filter(d => d && !d.archived);
+    const mineLbl = mine.length === 1 ? `My department (${mine[0].name})` : mine.length ? 'My departments' : '';
+    const html = (mineLbl ? `<option value="mine">${esc(mineLbl)}</option>` : '') + '<option value="all">All departments</option>' + liveDepts().map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join('');
+    if (sel.dataset.h !== html) { sel.innerHTML = html; sel.dataset.h = html; }
+    sel.value = Array.from(sel.options).some(o => o.value === CAL.dept) ? CAL.dept : (mineLbl ? 'mine' : 'all');
+  }
   const filters = $('#calFilters');
   if (filters) filters.innerHTML = ['job', 'event', 'booking', 'holiday'].map(k => `<button type="button" data-cal-kind="${k}" aria-pressed="${CAL.on[k] ? 'true' : 'false'}"><i class="k-${k}"></i>${k === 'holiday' ? 'Public holidays' : CAL_LABEL[k] + 's'}</button>`).join('');
   const first = parseDay(CAL.cursor);
@@ -2804,6 +2862,71 @@ function renderCalendar() {
   }
   const hol = $('#calKind option[value="holiday"]'); if (hol) hol.hidden = !canSupervise();
   const box = $('#calHolBox'); if (box && $('#calKind')) box.hidden = $('#calKind').value !== 'holiday' || !canSupervise();
+}
+const ICS_DAY = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+const icsEsc = s => String(s || '').replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
+const icsFold = line => { const out = []; let s = line; while (s.length > 73) { out.push(s.slice(0, 73)); s = ' ' + s.slice(73); } out.push(s); return out.join('\r\n'); };
+const icsDay = s => String(s).replace(/-/g, '');
+function icsClock(day, hm, add) {
+  const [h, m] = hm.split(':').map(Number), d = parseDay(day);
+  d.setHours(h, m + (add || 0), 0, 0);
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+}
+function buildIcs() {
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+  const from = addDays(dayKey(), -30), to = addDays(dayKey(), 180), ds = calDepts();
+  const ev = [];
+  const push = (uid, summary, start, end, extra) => {
+    ev.push(['BEGIN:VEVENT', 'UID:' + uid, 'DTSTAMP:' + stamp, start, end, 'SUMMARY:' + icsEsc(summary)].concat(extra || [], ['END:VEVENT']));
+  };
+  if (CAL.on.job) {
+    for (const t of liveTasks()) {
+      if (!t.due || t.due < from || t.due > to || (ds && !taskInDepts(t, ds))) continue;
+      const when = t.due_time
+        ? ['DTSTART:' + icsClock(t.due, t.due_time), 'DTEND:' + icsClock(t.due, t.due_time, 30)]
+        : ['DTSTART;VALUE=DATE:' + icsDay(t.due), 'DTEND;VALUE=DATE:' + icsDay(addDays(t.due, 1))];
+      push('job-' + t.id + '@wtm', t.title, when[0], when[1], ['CATEGORIES:Job'].concat(t.status === 'done' ? ['STATUS:COMPLETED'] : []));
+    }
+    for (const d of D.daily.values()) {
+      if (d.archived_at || d.active === false || (ds && !ds.has(d.department_id))) continue;
+      const by = (d.weekdays || []).map(n => ICS_DAY[Number(n)]).filter(Boolean);
+      if (!by.length) continue;
+      const dept = (D.depts.get(d.department_id) || {}).name || '';
+      const when = d.due_time
+        ? ['DTSTART:' + icsClock(dayKey(), d.due_time), 'DTEND:' + icsClock(dayKey(), d.due_time, 30)]
+        : ['DTSTART;VALUE=DATE:' + icsDay(dayKey()), 'DTEND;VALUE=DATE:' + icsDay(addDays(dayKey(), 1))];
+      push('daily-' + d.id + '@wtm', d.title, when[0], when[1], ['RRULE:FREQ=WEEKLY;BYDAY=' + by.join(','), 'CATEGORIES:Job'].concat(dept ? ['DESCRIPTION:' + icsEsc(dept)] : []));
+    }
+  }
+  for (const c of D.calendar.values()) {
+    if (c.deleted_at || !CAL.on[c.kind] || !isDay(c.day)) continue;
+    const end = c.end_day && isDay(c.end_day) ? c.end_day : c.day;
+    if (end < from || c.day > to) continue;
+    const when = c.starts
+      ? ['DTSTART:' + icsClock(c.day, String(c.starts).slice(0, 5)), 'DTEND:' + icsClock(c.day, String(c.starts).slice(0, 5), 60)]
+      : ['DTSTART;VALUE=DATE:' + icsDay(c.day), 'DTEND;VALUE=DATE:' + icsDay(addDays(end, 1))];
+    push(c.kind + '-' + c.id + '@wtm', c.title, when[0], when[1], ['CATEGORIES:' + CAL_LABEL[c.kind]].concat(c.notes ? ['DESCRIPTION:' + icsEsc(c.notes)] : []));
+  }
+  const head = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//WTM//Work Task Manager//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:WTM'];
+  return head.concat(...ev, ['END:VCALENDAR']).map(icsFold).join('\r\n') + '\r\n';
+}
+function downloadCalendar() {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([buildIcs()], { type: 'text/calendar' }));
+  a.download = 'WTM.ics';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast('Saved WTM.ics. Open it, or in Google Calendar use Settings, then Import.');
+}
+async function copyCalendarLink() {
+  let token = '';
+  try { token = await call('wtm_calendar_feed', { p_dept: CAL.dept || 'mine' }); }
+  catch (e) { toast('The live link needs the latest database script. The file download works now.', { tone: 'danger', ms: 7000 }); return; }
+  if (!token || !CONFIG.url) { toast('The live link is not available yet. The file download works now.', { tone: 'danger' }); return; }
+  const url = CONFIG.url.replace(/\/$/, '') + '/functions/v1/wtm-calendar?token=' + token;
+  try { await navigator.clipboard.writeText(url); }
+  catch (e) { toast(url, { ms: 12000 }); return; }
+  toast('Subscribe link copied. In Google Calendar choose Other calendars, then From URL. Outlook and Apple Calendar subscribe to the same link. It follows the department chosen here.', { ms: 9000 });
 }
 function openCalForm(day, entry) {
   const form = $('#calForm'); if (!form) return;
@@ -2852,9 +2975,9 @@ function setNavOpen(open) {
   nav.removeAttribute('inert');
 }
 function setView(v, initial) {
-  if (!['tasks', 'messages', 'board', 'orders', 'daily', 'calendar', 'handover', 'log', 'people', 'settings'].includes(v)) v = 'tasks';
+  if (!['tasks', 'messages', 'board', 'orders', 'invoices', 'daily', 'calendar', 'handover', 'log', 'people', 'settings'].includes(v)) v = 'tasks';
   UI.view = v; LS.set('wtm.view', v);
-  for (const k of ['tasks', 'messages', 'board', 'orders', 'daily', 'calendar', 'handover', 'log', 'people', 'settings']) $('#view-' + k).hidden = k !== v;
+  for (const k of ['tasks', 'messages', 'board', 'orders', 'invoices', 'daily', 'calendar', 'handover', 'log', 'people', 'settings']) $('#view-' + k).hidden = k !== v;
   try { if (location.hash.slice(1) !== v) history.replaceState(null, '', '#' + v); } catch (_) {}
   closePop(); closeQaMenu(); closeMention(); closeConvMenu();
   renderNow();
@@ -2872,6 +2995,10 @@ function wire() {
   $('#calNext').addEventListener('click', () => { CAL.cursor = shiftMonth(CAL.cursor, 1); renderCalendar(); });
   $('#calToday').addEventListener('click', () => { CAL.cursor = dayKey().slice(0, 7) + '-01'; CAL.day = dayKey(); renderCalendar(); });
   $('#calAdd').addEventListener('click', () => openCalForm(CAL.day));
+  $('#calDept').addEventListener('change', e => { CAL.dept = e.target.value; LS.set('wtm.cal.dept', CAL.dept); renderCalendar(); });
+  $('#calSync').addEventListener('click', () => { const b = $('#calSyncBox'); b.hidden = !b.hidden; $('#calSync').setAttribute('aria-expanded', b.hidden ? 'false' : 'true'); });
+  $('#calDownload').addEventListener('click', downloadCalendar);
+  $('#calLink').addEventListener('click', copyCalendarLink);
   $('#calFilters').addEventListener('click', e => { const b = e.target.closest('[data-cal-kind]'); if (!b) return; CAL.on[b.dataset.calKind] = b.getAttribute('aria-pressed') !== 'true'; renderCalendar(); });
   $('#calGrid').addEventListener('click', e => { const b = e.target.closest('[data-cal-day]'); if (!b) return; CAL.day = b.dataset.calDay; renderCalendar(); });
   $('#calDay').addEventListener('click', e => {
@@ -3100,8 +3227,15 @@ function wire() {
   });
   $('#thread').addEventListener('change', e => { if (e.target.id === 'msgDept') { UI.msgDept = e.target.value; } });
   $('#thread').addEventListener('submit', e => { if (e.target.id === 'msgForm') { e.preventDefault(); sendMessage(); } });
-  $('#thread').addEventListener('input', e => { if (e.target.id === 'msgBody') autosize(e.target); });
-  $('#thread').addEventListener('keydown', e => { if (e.target.id === 'msgBody' && e.key === 'Enter' && !e.shiftKey && innerWidth > 640) { e.preventDefault(); sendMessage(); } });
+  const msgPick = item => { if (item.kind === 'task') { UI.linkTask = item.id; renderThread(); } };
+  const msgMention = el => syncMention(el, 'msg', msgPick, null, '@#^');
+  $('#thread').addEventListener('input', e => { if (e.target.id === 'msgBody') { autosize(e.target); msgMention(e.target); } });
+  $('#thread').addEventListener('click', e => { if (e.target.id === 'msgBody') msgMention(e.target); });
+  $('#thread').addEventListener('keyup', e => { if (e.target.id === 'msgBody' && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) msgMention(e.target); });
+  $('#thread').addEventListener('keydown', e => {
+    if (mention && mention.input === e.target && (e.key === 'Escape' || (mention.items.length && ['Enter', 'Tab', 'ArrowDown', 'ArrowUp'].includes(e.key)))) return;
+    if (e.target.id === 'msgBody' && e.key === 'Enter' && !e.shiftKey && innerWidth > 640) { e.preventDefault(); sendMessage(); }
+  });
   // log book
   $('#logAdd').addEventListener('submit', async e => {
     e.preventDefault();
@@ -3287,7 +3421,7 @@ function wire() {
     const k = e.key.toLowerCase();
     if (k === 'n') { e.preventDefault(); setView('tasks'); $('#qaInput').focus(); }
     else if (e.key === '/') { e.preventDefault(); const map = { tasks: '#taskSearch', board: '#noticeSearch', orders: '#orderSearch', daily: '#dailySearch', log: '#logSearch', people: '#peopleSearch' }; if (!map[UI.view]) setView('tasks'); $(map[UI.view] || '#taskSearch').focus(); }
-    else if (k === 't') setView('tasks'); else if (k === 'd') setView('daily'); else if (k === 'c') setView('calendar'); else if (k === 'h') setView('handover'); else if (k === 'm') setView('messages'); else if (k === 'b') setView('board'); else if (k === 'o') setView('orders'); else if (k === 'l') setView('log'); else if (k === 'p') setView('people'); else if (k === 's') setView('settings');
+    else if (k === 't') setView('tasks'); else if (k === 'd') setView('daily'); else if (k === 'c') setView('calendar'); else if (k === 'h') setView('handover'); else if (k === 'm') setView('messages'); else if (k === 'b') setView('board'); else if (k === 'o') setView('orders'); else if (k === 'i') setView('invoices'); else if (k === 'l') setView('log'); else if (k === 'p') setView('people'); else if (k === 's') setView('settings');
   });
   addEventListener('hashchange', () => { const v = location.hash.slice(1); if (v && v !== UI.view && D.ready) setView(v); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && D.ready) sync(); });

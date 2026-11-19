@@ -1405,6 +1405,70 @@ begin
   return jsonb_build_object('saved', n, 'skipped', skipped);
 end $$;
 
+-- A private token so Google Calendar, Outlook and Apple Calendar can subscribe.
+-- The browser only ever sees its own token. The feed itself is read by the
+-- wtm-calendar Edge Function, which calls wtm_feed_data with the service role.
+create table if not exists public.calendar_feeds (
+  profile_id uuid primary key references public.profiles(id) on delete cascade,
+  token      text not null unique,
+  dept       text not null default 'mine'
+);
+alter table public.calendar_feeds enable row level security;
+
+create or replace function public.wtm_calendar_feed(p_dept text) returns text
+language plpgsql security definer set search_path = public as $$
+declare me uuid := auth.uid(); d text := left(btrim(coalesce(p_dept, 'mine')), 40); tok text;
+begin
+  perform public.wtm__require(public.wtm_my_rank() > 0, 'Your account is turned off.');
+  if d <> 'all' and d <> 'mine' and d !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then d := 'mine'; end if;
+  insert into calendar_feeds (profile_id, token, dept)
+  values (me, replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', ''), d)
+  on conflict (profile_id) do update set dept = excluded.dept
+  returning token into tok;
+  return tok;
+end $$;
+
+create or replace function public.wtm_feed_data(p_token text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid; d text; ids uuid[]; jobs jsonb; daily jsonb; entries jsonb;
+begin
+  if p_token is null or p_token !~ '^[0-9a-f]{64}$' then return null; end if;
+  select profile_id, dept into uid, d from calendar_feeds where token = p_token;
+  if uid is null then return null; end if;
+  perform set_config('request.jwt.claim.sub', uid::text, true);
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+  perform set_config('request.jwt.claims', json_build_object('sub', uid, 'role', 'authenticated')::text, true);
+  if auth.uid() is distinct from uid or public.wtm_my_rank() < 1 then return null; end if;
+  if d = 'all' then ids := null;
+  elsif d = 'mine' then ids := public.wtm_my_depts(); if ids is null or cardinality(ids) = 0 then ids := null; end if;
+  else ids := array[d::uuid];
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'id', t.id, 'title', t.title, 'due', t.due, 'due_time', to_char(t.due_time, 'HH24:MI'),
+           'status', t.status, 'notes', left(t.notes, 500))), '[]'::jsonb) into jobs
+    from tasks t
+   where t.deleted_at is null and t.due is not null
+     and t.due between current_date - 30 and current_date + 180
+     and t.id in (select v.id from public.wtm_visible_task_ids() v)
+     and (ids is null or exists (
+           select 1 from task_assignees a where a.task_id = t.id and (
+             (a.kind = 'dept' and a.target_id = any(ids))
+             or (a.kind = 'user' and exists (
+                  select 1 from department_members dm where dm.profile_id = a.target_id and dm.department_id = any(ids))))));
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'id', dt.id, 'title', dt.title, 'due_time', to_char(dt.due_time, 'HH24:MI'),
+           'weekdays', to_jsonb(dt.weekdays), 'notes', left(dt.notes, 500),
+           'department', (select name from departments where id = dt.department_id))), '[]'::jsonb) into daily
+    from daily_tasks dt
+   where dt.archived_at is null and dt.active and (ids is null or dt.department_id = any(ids));
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'id', c.id, 'kind', c.kind, 'title', c.title, 'day', c.day, 'end_day', c.end_day,
+           'starts', to_char(c.starts, 'HH24:MI'), 'notes', left(c.notes, 500))), '[]'::jsonb) into entries
+    from calendar_entries c
+   where c.deleted_at is null and coalesce(c.end_day, c.day) >= current_date - 30 and c.day <= current_date + 180;
+  return jsonb_build_object('jobs', jobs, 'daily', daily, 'entries', entries);
+end $$;
+
 -- ---------------------------------------------------------------------
 -- 7. People, departments, groups, projects, rooms, keyword rules
 -- ---------------------------------------------------------------------
@@ -2021,10 +2085,11 @@ grant execute on function
   public.wtm_save_rule(jsonb), public.wtm_delete_rule(uuid), public.wtm_save_rules(jsonb), public.wtm_save_tag_department(jsonb),
   public.wtm_save_notice(jsonb), public.wtm_save_order(jsonb),
   public.wtm_save_daily(jsonb), public.wtm_open_daily(date, time),
-  public.wtm_save_calendar(jsonb), public.wtm_import_holidays(jsonb)
+  public.wtm_save_calendar(jsonb), public.wtm_import_holidays(jsonb), public.wtm_calendar_feed(text)
 to authenticated;
 grant execute on function public.wtm_svc_check(uuid, uuid, public.wtm_role), public.wtm_svc_after_create(uuid, uuid, jsonb),
-  public.wtm_svc_after_reset(uuid, uuid), public.wtm_svc_before_delete(uuid, uuid), public.wtm_svc_after_delete(uuid, uuid) to service_role;
+  public.wtm_svc_after_reset(uuid, uuid), public.wtm_svc_before_delete(uuid, uuid), public.wtm_svc_after_delete(uuid, uuid),
+  public.wtm_feed_data(text) to service_role;
 
 -- ---------------------------------------------------------------------
 -- 12. Realtime: tell browsers when something changes

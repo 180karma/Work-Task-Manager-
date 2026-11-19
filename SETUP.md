@@ -41,6 +41,7 @@ With the [Supabase CLI](https://supabase.com/docs/guides/cli), from the folder t
 supabase login
 supabase link --project-ref <your-project-ref>
 supabase functions deploy wtm-admin
+supabase functions deploy wtm-calendar --no-verify-jwt
 ```
 
 The function uses the project's service-role key on the server. That key never reaches the browser.
@@ -74,6 +75,27 @@ Sign in as IT, then:
 - **People → Add person**: create logins. Each person gets a temporary password, shown once, and must choose their own the first time they sign in. Give each person one or more departments.
 - **People → Groups**: anyone can make a group, such as Night shift, for people who work together across departments.
 - **Settings → Auto-tagging**: add rooms and keywords. For example, “leak” → #plumbing.
+
+## Invoices
+
+**Invoices** shows the [Invoice Scraper](https://github.com/180karma/Invoice_scraper) inside WTM. It is a separate app with its own Supabase project and its own username sign-in, so people sign in to it once inside WTM. WTM roles don't apply there. **Open in a new tab** opens the scraper on its own.
+
+The address comes from `INVOICE_SCRAPER_URL` in `.env` (default `https://180karma.github.io/Invoice_scraper/`). Run `node scripts/sync-config.mjs` after changing it.
+
+## Calendar
+
+Jobs, events, bookings and public holidays each have their own colour. The department menu limits jobs and daily tasks to one department.
+
+**Sync** downloads a calendar file, or copies a link that Google Calendar, Outlook and Apple Calendar can subscribe to. The link follows the department chosen on screen and only includes tasks that person is allowed to see.
+
+The link needs two extra steps, once:
+
+1. Run `supabase/schema.sql` again so the `calendar_feeds` table and feed functions exist.
+2. Deploy the feed, with JWT checks off, because those calendars fetch the link with no sign-in:
+
+```bash
+supabase functions deploy wtm-calendar --no-verify-jwt
+```
 
 ## Roles
 

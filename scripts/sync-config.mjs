@@ -1,4 +1,4 @@
-// Copies the public Supabase URL and anon key from .env into js/config.js.
+// Copies the public Supabase URL, anon key and invoice scraper address from .env into js/config.js.
 // The service-role key is left in .env and never written for the browser.
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -30,6 +30,7 @@ const config = `// Public Supabase settings for the browser.
 window.WTM_CONFIG = {
   url: ${JSON.stringify(env.SUPABASE_URL || "")},
   anonKey: ${JSON.stringify(env.SUPABASE_ANON_KEY || "")},
+  invoicesUrl: ${JSON.stringify(env.INVOICE_SCRAPER_URL ?? "https://180karma.github.io/Invoice_scraper/")},
 };
 `;
 

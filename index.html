@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#F2F4F1" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0E1412" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#EEF6FB" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#08131B" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="WTM">
@@ -13,16 +13,17 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,500..800&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="css/base.css">
-<link rel="stylesheet" href="css/shell.css?v=dock">
-<link rel="stylesheet" href="css/common.css">
+<link rel="stylesheet" href="css/base.css?v=pacific">
+<link rel="stylesheet" href="css/shell.css?v=pacific">
+<link rel="stylesheet" href="css/common.css?v=pacific">
 <link rel="stylesheet" href="css/tasks.css?v=stamp">
-<link rel="stylesheet" href="css/calendar.css?v=cal">
+<link rel="stylesheet" href="css/calendar.css?v=sync">
 <link rel="stylesheet" href="css/messages.css?v=conv">
 <link rel="stylesheet" href="css/log.css">
 <link rel="stylesheet" href="css/people.css?v=folder">
 <link rel="stylesheet" href="css/settings.css?v=maps">
 <link rel="stylesheet" href="css/board.css">
+<link rel="stylesheet" href="css/invoices.css">
 <link rel="stylesheet" href="css/overlays.css?v=kwmap">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 </head>
@@ -47,6 +48,7 @@
       <button type="button" data-view="messages"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5.5h16v10H9l-5 4v-14Z"/><path d="M8 9.5h8M8 12.5h5"/></svg><span>Messages</span><span class="nbadge" id="navUnread" hidden></span><span class="kbd">M</span></button>
       <button type="button" data-view="board"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5.5h16v11H4z"/><path d="M12 3.5v3M9 19.5h6"/></svg><span>Board</span><span class="kbd">B</span></button>
       <button type="button" data-view="orders"><svg class="ico" viewBox="0 0 24 24"><path d="M7 4.5h7l4 4V19.5H7z"/><path d="M14 4.5V9h4M9.5 13h6M9.5 16.5h4"/></svg><span>Orders</span><span class="kbd">O</span></button>
+      <button type="button" data-view="invoices"><svg class="ico" viewBox="0 0 24 24"><path d="M6 3.5h12v17l-2.4-1.6-2.4 1.6-2.4-1.6-2.4 1.6L6 20.5z"/><path d="M9 8h6M9 11.5h6M9 15h3.5"/></svg><span>Invoices</span><span class="kbd">I</span></button>
       <button type="button" data-view="log"><svg class="ico" viewBox="0 0 24 24"><path d="M5 4.5h11.5A2.5 2.5 0 0 1 19 7v13.5H7.5A2.5 2.5 0 0 1 5 18V4.5Z"/><path d="M5 18a2.5 2.5 0 0 1 2.5-2.5H19M9 8.5h6M9 11.5h4"/></svg><span>Log book</span><span class="kbd">L</span></button>
       <button type="button" data-view="people"><svg class="ico" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5M15.5 5.6a3 3 0 0 1 0 5.8M17.5 14.3c1.7.6 2.8 2.2 3.1 4.7"/></svg><span>Staff/Dept.</span><span class="kbd">P</span></button>
       <button type="button" data-view="settings"><svg class="ico" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></svg><span>Settings</span><span class="kbd">S</span></button>
@@ -125,8 +127,17 @@
         <button type="button" class="iconbtn" id="calNext" aria-label="Next month"><svg class="ico" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
         <button type="button" class="btn sm" id="calToday">Today</button>
         <button type="button" class="btn sm primary" id="calAdd">Add</button>
+        <button type="button" class="btn sm" id="calSync" aria-expanded="false" aria-controls="calSyncBox">Sync</button>
       </div>
-      <div class="calfilters" id="calFilters" role="group" aria-label="Show on the calendar"></div>
+      <div class="calsync" id="calSyncBox" hidden>
+        <p>Send what's showing to Google Calendar, Outlook or Apple Calendar. The file is a snapshot. The link stays up to date and follows the department chosen above.</p>
+        <div class="row"><button type="button" class="btn sm" id="calDownload">Download calendar file</button><button type="button" class="btn sm" id="calLink">Copy subscribe link</button></div>
+      </div>
+      <div class="calopts">
+        <label class="sr" for="calDept">Whose tasks</label>
+        <select class="field sm" id="calDept"></select>
+        <div class="calfilters" id="calFilters" role="group" aria-label="Show on the calendar"></div>
+      </div>
       <div class="calgrid" id="calGrid"></div>
       <div id="calDay"></div>
       <form class="composer" id="calForm" hidden autocomplete="off">
@@ -217,6 +228,13 @@
         <label class="search grow"><span class="sr">Search orders</span><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg><input class="field" id="orderSearch" type="search" placeholder="Search the order list"></label>
       </div>
       <div class="orders" id="orderOut"></div>
+    </section>
+
+    <!-- INVOICES (the Invoice Scraper, with its own sign-in and Supabase project) -->
+    <section id="view-invoices" aria-labelledby="h-invoices" hidden>
+      <div class="viewhead"><h1 id="h-invoices">Invoices</h1><a class="btn ghost" id="invOpen" target="_blank" rel="noopener"><svg class="ico" viewBox="0 0 24 24"><path d="M13.5 4.5h6v6M19.5 4.5 11 13M17 14v5.5H4.5V7H10"/></svg>Open in a new tab</a></div>
+      <p class="muted" id="invNone" hidden>The invoice scraper address isn't set. Add <code>INVOICE_SCRAPER_URL</code> to <code>.env</code> and run <code>node scripts/sync-config.mjs</code>.</p>
+      <iframe class="invframe" id="invFrame" title="Invoice scraper" allow="clipboard-write; camera"></iframe>
     </section>
 
     <!-- LOG BOOK -->

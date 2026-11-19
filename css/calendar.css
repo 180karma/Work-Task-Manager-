@@ -1,10 +1,19 @@
 /* ---------- calendar ---------- */
+:root{--cal-job:#0E7FA6;--cal-event:#2E9B62;--cal-booking:#E0912A;--cal-holiday:#8A5BB5}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--cal-job:#5CC8E6;--cal-event:#7DCA8E;--cal-booking:#F2A73D;--cal-holiday:#C9A0E0}}
+:root[data-theme="dark"]{--cal-job:#5CC8E6;--cal-event:#7DCA8E;--cal-booking:#F2A73D;--cal-holiday:#C9A0E0}
 .calbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .calbar h2{margin:0;font-size:18px;flex:1;min-width:8em}
-.calfilters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.calopts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.calopts #calDept{flex:0 0 auto;width:auto;max-width:100%}
+.calfilters{display:flex;gap:6px;flex-wrap:wrap}
 .calfilters button{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font-size:12.5px;font-weight:600}
-.calfilters button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
-.calfilters i{width:8px;height:8px;border-radius:50%;background:var(--dot,var(--accent))}
+.calfilters button:has(.k-job){--cal:var(--cal-job)}
+.calfilters button:has(.k-event){--cal:var(--cal-event)}
+.calfilters button:has(.k-booking){--cal:var(--cal-booking)}
+.calfilters button:has(.k-holiday){--cal:var(--cal-holiday)}
+.calfilters button[aria-pressed="true"]{border-color:var(--cal,var(--accent));background:color-mix(in srgb,var(--cal,var(--accent)) 16%,var(--surface));color:var(--cal,var(--accent))}
+.calfilters i{width:8px;height:8px;border-radius:50%}
 .calgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
 .calwd{text-align:center;font:600 10px/1 var(--f-mono);letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:2px 0 4px}
 .calcell{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-height:58px;padding:4px 5px;border:1px solid var(--line);border-radius:10px;background:var(--surface);text-align:left}
@@ -14,10 +23,17 @@
 .calcell.on{background:var(--accent-soft);border-color:var(--accent)}
 .cdots{display:flex;gap:3px;flex-wrap:wrap}
 .cdots i{width:7px;height:7px;border-radius:50%}
-.k-job{background:var(--accent)}
-.k-event{background:var(--info)}
-.k-booking{background:var(--signal)}
-.k-holiday{background:var(--c4)}
+.k-job{background:var(--cal-job)}
+.k-event{background:var(--cal-event)}
+.k-booking{background:var(--cal-booking)}
+.k-holiday{background:var(--cal-holiday)}
+.calday li button:has(.k-job){box-shadow:inset 3px 0 0 var(--cal-job)}
+.calday li button:has(.k-event){box-shadow:inset 3px 0 0 var(--cal-event)}
+.calday li button:has(.k-booking){box-shadow:inset 3px 0 0 var(--cal-booking)}
+.calday li button:has(.k-holiday){box-shadow:inset 3px 0 0 var(--cal-holiday)}
+.calsync{margin:0 0 10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.calsync p{margin:0 0 8px;font-size:13px;color:var(--muted)}
+.calsync .row{display:flex;gap:8px;flex-wrap:wrap}
 .calday{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:var(--shadow-sm)}
 .calday h3{margin:0 0 8px;font-size:16px}
 .calday ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}

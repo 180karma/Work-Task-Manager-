@@ -114,7 +114,7 @@ function SignInSetup(saved: { google: string; microsoft: string }) {
     >
       <h2>{ready ? 'Sign-in apps' : 'Turn on Gmail and Microsoft sign-in'}</h2>
       <p className="page__lede">
-        Admin and IT only. Paste the OAuth client id from Google Cloud and from Microsoft Entra. Everyone with Mail signs in through these apps. Register this redirect URI on both: <code>{redirectUri()}</code>
+        Admin and IT only. Paste the OAuth client id from Google Cloud and from Microsoft Entra. Never paste a client secret (Google’s start with GOCSPX-). Everyone with Mail signs in through these apps. Register this redirect URI on both: <code>{redirectUri()}</code>
       </p>
       <label className="field-label" htmlFor="google-client">
         Google client id

@@ -2049,6 +2049,10 @@ begin
   select * into old from mail_settings where id = 1;
   g := case when p ? 'google_client_id' then left(btrim(coalesce(p->>'google_client_id', '')), 200) else coalesce(old.google_client_id, '') end;
   m := case when p ? 'microsoft_client_id' then left(btrim(coalesce(p->>'microsoft_client_id', '')), 200) else coalesce(old.microsoft_client_id, '') end;
+  perform public.wtm__require(g = '' or g ~ '^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$',
+    'That isn''t a Google client ID. It ends in .apps.googleusercontent.com. Don''t paste the client secret (GOCSPX-…).');
+  perform public.wtm__require(m = '' or m ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+    'That isn''t a Microsoft client ID. Use the Application (client) ID, which looks like 1a2b3c4d-0000-0000-0000-000000000000.');
   insert into mail_settings (id, google_client_id, microsoft_client_id, updated_by, updated_at)
   values (1, g, m, me, now())
   on conflict (id) do update set google_client_id = g, microsoft_client_id = m, updated_by = me, updated_at = now();

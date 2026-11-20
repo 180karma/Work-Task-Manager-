@@ -1347,6 +1347,7 @@ function renderNow() {
   else if (UI.view === 'board') renderBoard();
   else if (UI.view === 'orders') renderOrders();
   else if (UI.view === 'invoices') renderInvoices();
+  else if (UI.view === 'mail') renderMail();
   else if (UI.view === 'daily') renderDaily();
   else if (UI.view === 'calendar') renderCalendar();
   else if (UI.view === 'handover') renderHandover();
@@ -2737,6 +2738,11 @@ function renderInvoices() {
   $('#invOpen').href = url;
   if (!f.getAttribute('src')) f.src = url;
 }
+// Relay Mail keeps its own mailbox. The frame stays loaded so a draft survives switching views.
+function renderMail() {
+  const f = $('#mailFrame');
+  if (!f.getAttribute('src')) f.src = 'mail-client/relay-mail.html';
+}
 function renderOrders() {
   fillTradeSelect($('#orderTrade'), $('#orderTrade').value);
   fillDeptSelect($('#orderDept'), $('#orderDept') && $('#orderDept').value, 'Department');
@@ -3220,9 +3226,9 @@ function setNavOpen(open) {
   nav.removeAttribute('inert');
 }
 function setView(v, initial) {
-  if (!['tasks', 'messages', 'board', 'orders', 'invoices', 'daily', 'calendar', 'handover', 'log', 'people', 'settings'].includes(v)) v = 'tasks';
+  if (!['tasks', 'messages', 'mail', 'board', 'orders', 'invoices', 'daily', 'calendar', 'handover', 'log', 'people', 'settings'].includes(v)) v = 'tasks';
   UI.view = v; LS.set('wtm.view', v);
-  for (const k of ['tasks', 'messages', 'board', 'orders', 'invoices', 'daily', 'calendar', 'handover', 'log', 'people', 'settings']) $('#view-' + k).hidden = k !== v;
+  for (const k of ['tasks', 'messages', 'mail', 'board', 'orders', 'invoices', 'daily', 'calendar', 'handover', 'log', 'people', 'settings']) $('#view-' + k).hidden = k !== v;
   try { if (location.hash.slice(1) !== v) history.replaceState(null, '', '#' + v); } catch (_) {}
   closePop(); closeQaMenu(); closeMention(); closeConvMenu();
   renderNow();
@@ -3730,7 +3736,7 @@ function wire() {
     const k = e.key.toLowerCase();
     if (k === 'n') { e.preventDefault(); setView('tasks'); $('#qaInput').focus(); }
     else if (e.key === '/') { e.preventDefault(); const map = { tasks: '#taskSearch', orders: '#orderSearch', daily: '#dailySearch', log: '#logSearch', people: '#peopleSearch' }; if (!map[UI.view]) setView('tasks'); $(map[UI.view] || '#taskSearch').focus(); }
-    else if (k === 't') setView('tasks'); else if (k === 'd') setView('daily'); else if (k === 'c') setView('calendar'); else if (k === 'h') setView('handover'); else if (k === 'm') setView('messages'); else if (k === 'b') setView('board'); else if (k === 'o') setView('orders'); else if (k === 'i') setView('invoices'); else if (k === 'l') setView('log'); else if (k === 'p') setView('people'); else if (k === 's') setView('settings');
+    else if (k === 't') setView('tasks'); else if (k === 'd') setView('daily'); else if (k === 'c') setView('calendar'); else if (k === 'h') setView('handover'); else if (k === 'm') setView('messages'); else if (k === 'e') setView('mail'); else if (k === 'b') setView('board'); else if (k === 'o') setView('orders'); else if (k === 'i') setView('invoices'); else if (k === 'l') setView('log'); else if (k === 'p') setView('people'); else if (k === 's') setView('settings');
   });
   addEventListener('hashchange', () => { const v = location.hash.slice(1); if (v && v !== UI.view && D.ready) setView(v); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && D.ready) sync(); });

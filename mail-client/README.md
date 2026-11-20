@@ -18,7 +18,7 @@ A web client that connects existing Gmail and Microsoft Outlook accounts and sho
 
 ## Run it
 
-The app lives in `mail-client/` of this repository, separate from the WTM app at the root.
+Work Task Manager opens this folder from **Mail**. `npm run build:single` writes `relay-mail.html` here, and that is the page the Mail section loads.
 
 ```bash
 cd mail-client
@@ -33,7 +33,7 @@ Other scripts:
 |---|---|
 | `npm run build` | Type-checks, then builds to `dist/` with Vite |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm run build:single` | Bundles everything into one file, `dist-single/relay-mail.html` (used for the hosted preview) |
+| `npm run build:single` | Bundles everything into one file, `relay-mail.html`, which the Mail section loads |
 | `npm run test:e2e` | Builds the single file and runs the Playwright flow tests at desktop, tablet and phone sizes (`npx playwright install chromium` the first time) |
 
 ## What Phase 1 includes
@@ -83,7 +83,8 @@ Other scripts:
 ```
 index.html                     Vite entry, fonts, viewport
 .env.example                   Every variable for every phase, browser vs server
-scripts/build-single.mjs       esbuild → one self-contained HTML file
+relay-mail.html                Built page opened by Work Task Manager
+scripts/build-single.mjs       esbuild → relay-mail.html
 tests/phase1-e2e.mjs           Playwright flows (desktop, tablet, phone; light and dark)
 
 src/

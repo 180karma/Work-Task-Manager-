@@ -1,4 +1,4 @@
-// Smoke flows against dist-single/relay-mail.html at desktop, tablet and phone sizes.
+// Smoke flows against relay-mail.html at desktop, tablet and phone sizes.
 // Usage: npm run test:e2e   (first time: npx playwright install chromium)
 // Set SCREENSHOT_DIR to also save one screenshot per viewport.
 import { chromium } from 'playwright';
@@ -7,7 +7,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const url = pathToFileURL(resolve(root, 'dist-single/relay-mail.html')).href;
+const url = pathToFileURL(resolve(root, 'relay-mail.html')).href;
 const shots = process.env.SCREENSHOT_DIR;
 if (shots) mkdirSync(shots, { recursive: true });
 

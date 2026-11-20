@@ -1,9 +1,9 @@
-/* Invoices: the Invoice Scraper in a frame */
-.invframe{display:block;width:100%;height:calc(100dvh - 210px);min-height:480px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:var(--shadow-xs)}
+/* Invoices and Mail: each app in its own frame */
+.invframe,.mailframe{display:block;width:100%;height:calc(100dvh - 210px);min-height:480px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:var(--shadow-xs)}
 @media (max-width:899px){
-  #view-invoices .viewhead{display:none}
-  .invframe{height:calc(100dvh - 148px - env(safe-area-inset-bottom,0px));min-height:0}
+  #view-invoices .viewhead,#view-mail .viewhead{display:none}
+  .invframe,.mailframe{height:calc(100dvh - 148px - env(safe-area-inset-bottom,0px));min-height:0}
 }
 @media (min-width:900px){
-  .invframe{height:calc(100dvh - 120px)}
+  .invframe,.mailframe{height:calc(100dvh - 120px)}
 }

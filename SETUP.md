@@ -78,9 +78,25 @@ Sign in as IT, then:
 
 ## Invoices
 
-**Invoices** shows the [Invoice Scraper](https://github.com/180karma/Invoice_scraper) inside WTM. It is a separate app with its own Supabase project and its own username sign-in, so people sign in to it once inside WTM. WTM roles don't apply there. **Open in a new tab** opens the scraper on its own.
+**Invoices** shows the Invoice Scraper inside WTM. The scraper lives in `invoice-scraper/` (the page, its database script, and the `gemini-extract` and `staff-admin` functions). It keeps its own Supabase project and its own username sign-in, so people sign in to it once inside WTM. WTM roles don't apply there. **Open in a new tab** opens the scraper on its own.
 
-The address comes from `INVOICE_SCRAPER_URL` in `.env` (default `https://180karma.github.io/Invoice_scraper/`). Run `node scripts/sync-config.mjs` after changing it.
+The address comes from `INVOICE_SCRAPER_URL` in `.env`. Leave it out to use `invoice-scraper/invoice_scraper.html`. Run `node scripts/sync-config.mjs` after changing it.
+
+The scraper's own setup is in `invoice-scraper/README.md`. Run `invoice-scraper/supabase-schema.sql` on the kitchen Supabase project, then deploy that folder's functions there. The kitchen anon key is already in the page.
+
+## Mail
+
+**Mail** shows Relay Mail, the Gmail and Outlook client. Phase 1 is the full interface on a demo mailbox stored in this browser. Source and the built page both live in `mail-client/`. WTM opens `mail-client/relay-mail.html`.
+
+After changing the mail client, rebuild that page:
+
+```bash
+cd mail-client
+npm install
+npm run build:single
+```
+
+That writes `mail-client/relay-mail.html`, which the Mail section loads. **Open in a new tab** opens it on its own. Press **E** to open Mail. It does not use WTM sign-in.
 
 ## Calendar
 

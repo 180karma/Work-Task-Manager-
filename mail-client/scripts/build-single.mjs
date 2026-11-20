@@ -1,21 +1,19 @@
-// Bundles the app into one self-contained HTML file (dist-single/relay-mail.html)
-// for previews and hosting where a dev server isn't available.
+// Bundles the app into one self-contained HTML file (relay-mail.html).
+// Work Task Manager opens that file from the Mail section.
 // Usage: node scripts/build-single.mjs [--dev]
 import { build } from 'esbuild';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dev = process.argv.includes('--dev');
-const out = resolve(root, 'dist-single');
-mkdirSync(out, { recursive: true });
 
 const result = await build({
   entryPoints: [resolve(root, 'src/main.tsx')],
   bundle: true,
   write: false,
-  outdir: out,
+  outdir: root,
   format: 'iife',
   target: 'es2020',
   jsx: 'automatic',
@@ -40,6 +38,6 @@ const html = template
   .replace('</head>', () => `    <style>${css}</style>\n  </head>`)
   .replace('</body>', () => `    <script>${js}</script>\n  </body>`);
 
-const file = resolve(out, 'relay-mail.html');
+const file = resolve(root, 'relay-mail.html');
 writeFileSync(file, html);
 console.log(`Wrote ${file} (${(html.length / 1024).toFixed(0)} KB)`);

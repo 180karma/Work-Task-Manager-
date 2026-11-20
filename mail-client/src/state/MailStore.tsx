@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { mailService, type MailService } from '../services/mail';
+import type { MailAccess } from '../services/mail/MailService';
+import type { RedirectResult } from '../services/mail/oauth';
 import type { Contact, DraftInput, Email, EmailAccount, EmailPatch, Folder, Label, Provider } from '../types/mail';
 import { SYSTEM_VIEW_NAMES } from './selectors';
 import { toast } from './toast';
@@ -14,9 +16,20 @@ export interface MailState {
   contacts: Contact[];
   /** Account ids currently syncing. */
   syncing: Set<string>;
+  access: MailAccess;
 }
 
-const INITIAL: MailState = { status: 'loading', error: null, accounts: [], emails: [], folders: [], labels: [], contacts: [], syncing: new Set() };
+const INITIAL: MailState = {
+  status: 'loading',
+  error: null,
+  accounts: [],
+  emails: [],
+  folders: [],
+  labels: [],
+  contacts: [],
+  syncing: new Set(),
+  access: { mode: 'demo', message: '', canConfigure: false, googleClientId: '', microsoftClientId: '' },
+};
 
 const message = (err: unknown) => (err instanceof Error ? err.message : 'Something went wrong.');
 
@@ -29,7 +42,7 @@ function useMailController(service: MailService) {
     setState((s) => ({ ...s, status: s.status === 'ready' ? 'ready' : 'loading', error: null }));
     try {
       const snap = await service.load();
-      setState((s) => ({ ...s, ...snap, status: 'ready', error: null }));
+      setState((s) => ({ ...s, ...snap, access: service.access(), status: 'ready', error: null }));
     } catch (err) {
       setState((s) => ({ ...s, status: 'error', error: message(err) }));
     }
@@ -191,15 +204,38 @@ function useMailController(service: MailService) {
 
   const connect = useCallback(
     async (provider: Provider) => {
+      const popup = window.open('about:blank', 'relay-oauth', 'width=520,height=720');
+      const onMessage = async (event: MessageEvent) => {
+        if (event.origin !== location.origin || (popup && event.source !== popup)) return;
+        const data = event.data as (RedirectResult & { type?: string }) | null;
+        if (!data || data.type !== 'relay-oauth') return;
+        window.removeEventListener('message', onMessage);
+        try {
+          const email = await service.finishConnect({ connected: data.connected, error: data.error });
+          toast(`Signed in as ${email}`);
+          void reload();
+        } catch (err) {
+          toast(message(err) || "Couldn't sign in.", { tone: 'error' });
+        }
+      };
+      window.addEventListener('message', onMessage);
       try {
         const { url, message: msg } = await service.beginConnect(provider);
-        if (url) window.location.assign(url);
-        else toast(msg);
+        if (!url) {
+          popup?.close();
+          window.removeEventListener('message', onMessage);
+          toast(msg);
+          return;
+        }
+        if (popup) popup.location.href = url;
+        else window.open(url, '_blank');
       } catch (err) {
+        popup?.close();
+        window.removeEventListener('message', onMessage);
         toast(`Couldn't start sign-in. ${message(err)}`, { tone: 'error' });
       }
     },
-    [service],
+    [service, reload],
   );
 
   const disconnect = useCallback(
@@ -295,6 +331,21 @@ function useMailController(service: MailService) {
     [optimistic, service],
   );
 
+  const saveSignInApps = useCallback(
+    async (google: string, microsoft: string) => {
+      try {
+        await service.saveSignInApps(google, microsoft);
+        setState((s) => ({ ...s, access: service.access() }));
+        toast('Sign-in saved for everyone with Mail.');
+        return true;
+      } catch (err) {
+        toast(`Couldn't save. ${message(err)}`, { tone: 'error' });
+        return false;
+      }
+    },
+    [service],
+  );
+
   const resetDemo = useCallback(async () => {
     if (!service.reset) return;
     const snap = await service.reset();
@@ -325,9 +376,10 @@ function useMailController(service: MailService) {
       deleteFolder,
       createLabel,
       deleteLabel,
+      saveSignInApps,
       resetDemo,
     }),
-    [service, reload, update, moveMessages, moveQuiet, setLabel, deleteForever, saveDraft, discardDraft, send, syncAccount, syncAll, connect, disconnect, updateAccount, createFolder, renameFolder, deleteFolder, createLabel, deleteLabel, resetDemo],
+    [service, reload, update, moveMessages, moveQuiet, setLabel, deleteForever, saveDraft, discardDraft, send, syncAccount, syncAll, connect, disconnect, updateAccount, createFolder, renameFolder, deleteFolder, createLabel, deleteLabel, saveSignInApps, resetDemo],
   );
 
   return { state, actions };

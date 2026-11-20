@@ -3519,7 +3519,7 @@ function renderLibrary() {
     (a.hidden ? '<p class="note">' + a.hidden + ' item' + pl(a.hidden) + ' hidden.' + (Cloud.limited() ? '' : ' <button class="link" type="button" data-act="lib-unhide">Show ' + (a.hidden === 1 ? 'it' : 'them') + ' again</button>') + '</p>' : '') +
     (a.ignored ? '<p class="note">' + a.ignored + ' item' + pl(a.ignored) + ' ignored on new invoices. <button class="link" type="button" data-act="lib-unignore">Scan ' + (a.ignored === 1 ? 'it' : 'them') + ' again</button></p>' : '') +
     (Cloud.ready() ? '<p class="note">The library lives in this browser and is copied to Supabase (signed in as ' + esc((Cloud.user && Cloud.user.name) || 'this account') + '). Everyone signed in sees the same invoices and items.</p>'
-      : '<p class="note">The library lives in this browser’s local storage on this device. Another browser or device starts empty, and clearing site data erases it, so take a backup now and then, or turn on the Supabase copy in Settings.</p>');
+      : '<p class="note">The library lives in this browser’s local storage on this device. Another browser or device starts empty, and clearing site data erases it, so take a backup now and then.</p>');
   syncCopyTableBtn();
 }
 // sends everything in this browser's local storage up, then loads the merged copy back
@@ -3841,7 +3841,7 @@ async function gemCall(body, signal) {
   catch (e) { if (e && e.code === 'server_off') Gem.serverWhy = e.why || ''; throw e; }
 }
 function gemNeed() {
-  if (!Cloud.user || !Cloud.role) return 'Sign in to scan with the Gemini key kept in Supabase.';
+  if (!Cloud.user || !Cloud.role) return 'A photo scan needs the Gemini function in Supabase. Text invoices are read in this browser.';
   return gemErr({ code: 'server_off', via: 'server', why: Gem.serverWhy });
 }
 function looseJson(t) {
@@ -3864,12 +3864,12 @@ function gemErr(e) {
   if (!e) return 'Gemini could not scan this page.';
   switch (e.code) {
     case 'cancelled': return '';
-    case 'no_key': return 'Sign in to scan with Gemini.';
+    case 'no_key': return 'A photo scan needs the Gemini function in Supabase. Text invoices are read in this browser.';
     case 'server_off':
       if (e.why === 'not_configured') return 'Scanning through Supabase needs the GEMINI_API_KEY secret. Add it to the GitHub repository secrets and run the Gemini function workflow.';
       if (e.why === 'network') return 'The Gemini scan function in Supabase could not be reached. It may not be deployed yet.';
       return 'The Gemini scan function (gemini-extract) is not ' + (e.why === 'missing' ? 'deployed to Supabase yet.' : 'working in Supabase right now.');
-    case 'server_auth': return 'Sign in again to scan with Gemini.';
+    case 'server_auth': return 'A photo scan needs the Gemini function in Supabase. Text invoices are read in this browser.';
     case 'not_allowed': return 'This account is not on the kitchen staff list, so it can’t scan with Gemini.';
     case 'blocked': return 'Gemini can’t be reached from inside Claude. Open your own copy of this page to use it.';
     case 'network': return 'Supabase could not reach Gemini. Try again in a minute.';
@@ -4721,7 +4721,8 @@ const Cloud = {
 function renderSyncPill() {
   const b = $('#syncPill'); if (!b) return;
   const C = Cloud;
-  if (!C.key || (!C.user && C.state !== 'error' && C.state !== 'offline')) { b.hidden = !C.key || !C.loaded; b.className = 'pill syncpill'; b.textContent = 'Sign in'; b.title = 'Sign in to copy data to Supabase'; }
+  if (!C.user && !C.offlinePass()) { b.hidden = true; const s0 = $('#sb-state'); if (s0) s0.innerHTML = ''; return; }
+  if (!C.key || (!C.user && C.state !== 'error' && C.state !== 'offline')) { b.hidden = true; return; }
   else {
     const map = { synced: ['good', 'Synced'], syncing: ['', 'Syncing'], offline: ['warn', 'Offline'], error: ['bad', 'Sync error'], off: ['', 'Syncing'] }, v = map[C.state] || map.off;
     b.hidden = false; b.className = 'pill syncpill' + (v[0] ? ' ' + v[0] : ''); b.textContent = v[1];
@@ -4753,7 +4754,7 @@ function sbBoxHtml() {
       '<div class="row"><button class="btn small' + (C.meta.uploadedAt ? '' : ' primary') + '" type="button" data-set="sb-upload">' + (C.meta.uploadedAt ? 'Upload everything again' : 'Upload existing data') + '</button><button class="btn small" type="button" data-set="sb-pull">Load from Supabase</button></div>' +
       '<p class="note">Every change is saved to Supabase while you are signed in.' + (C.meta.uploadedAt ? ' Everything in this browser was uploaded on ' + esc(niceDate(C.meta.uploadedAt.slice(0, 10))) + '.' : '') + '</p>';
   } else if (C.key) {
-    acct = '<p class="note">Sign in with the username and password an admin gave you.</p>';
+    acct = '<p class="note">No sign-in is needed. Invoices stay in this browser.</p>';
   }
   const where = !S.standalone ? '<p class="pill warn">Inside Claude this page can’t reach Supabase. Sync works in your own copy of the page: the invoice_scraper.html file on your own site, or opened in Chrome, Edge or Safari.</p>' : '';
   if (C.keyFrom === 'env') return where + acct + msg;
@@ -4823,7 +4824,7 @@ const CLAIM_SQL = [
   'revoke all on function public.claim_kitchen_admin() from public, anon;',
   'grant execute on function public.claim_kitchen_admin() to authenticated;'
 ].join('\n');
-function gateShown() { return S.standalone && !!Cloud.key && !(Cloud.user && Cloud.role) && !Cloud.offlinePass(); }
+function gateShown() { return false; }
 function gateHtml() {
   const C = Cloud, msg = C.gateMsg ? '<p class="note" aria-live="polite">' + esc(hideKey(C.gateMsg)) + '</p>' : '';
   const down = C.state === 'error' || C.state === 'offline';
@@ -5248,7 +5249,7 @@ function renderSettings(msg) {
   $('#settings').innerHTML = '<div class="card"><h2 id="setTitle">Settings<button class="iconbtn" type="button" data-set="close" aria-label="Close settings">&times;</button></h2>' +
     (S.setNote ? '<p class="pill warn">' + esc(S.setNote) + '</p>' : '') +
     '<h3 class="sec">Supabase copy</h3>' +
-    '<p class="note">Every change is saved to Supabase while you are signed in. It also keeps working offline and catches up when the connection is back.</p>' +
+    '<p class="note">' + (Cloud.user ? 'Every change is saved to Supabase while this browser is connected. It also keeps working offline and catches up when the connection is back.' : 'No sign-in is needed. The library stays in this browser.') + '</p>' +
     '<div id="sb-box">' + sbBoxHtml() + '</div>' +
     (Cloud.isAdmin() ? '<h3 class="sec">Staff</h3><div id="staff-box">' + staffBoxHtml() + '</div>' : '') +
     (Cloud.isAdmin() ? '<h3 class="sec">Admin</h3><div id="admin-del">' + adminDelHtml() + '</div>' : '') +

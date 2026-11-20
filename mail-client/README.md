@@ -70,7 +70,7 @@ Other scripts:
 - Several windows at once (minimise or expand).
 - Warns before sending without a subject, or when the text mentions an attachment that isn't there. Ctrl+Enter sends.
 
-**Connected accounts:** Connect Gmail and Connect Microsoft Outlook (these say which phase wires them up), status (connected, syncing, needs attention), sync errors with Reconnect, last sync time, default sending account, per-account signature, the permissions Relay requests, Sync now, and Disconnect (after a confirmation).
+**Connected accounts:** Connect Gmail and Connect Microsoft Outlook (saved to the Work Task Manager login through `src/services/mail/wtm.ts`; admin and IT set the OAuth client ids here), status (connected, syncing, needs attention), sync errors with Reconnect, last sync time, default sending account, per-account signature, the permissions Relay requests, Sync now, and Disconnect (after a confirmation).
 
 **Settings:** theme, density, preview lines, conversation grouping, mark-read-on-open, remote images, a reserved "Smart features" switch (off, for the later AI work), the keyboard shortcut list, and restoring the demo mailbox.
 

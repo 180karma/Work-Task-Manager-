@@ -78,7 +78,7 @@ Sign in as IT, then:
 
 ## Invoices
 
-**Invoices** shows the Invoice Scraper inside WTM. The scraper lives in `invoice-scraper/` (the page, its database script, and the `gemini-extract` and `staff-admin` functions). It keeps its own Supabase project and its own username sign-in, so people sign in to it once inside WTM. WTM roles don't apply there. **Open in a new tab** opens the scraper on its own.
+**Invoices** shows the Invoice Scraper inside WTM. The scraper lives in `invoice-scraper/` (the page, its database script, and the `gemini-extract` and `staff-admin` functions). It opens without its own sign-in. The library stays in the browser. **Open in a new tab** opens the scraper on its own.
 
 The address comes from `INVOICE_SCRAPER_URL` in `.env`. Leave it out to use `invoice-scraper/invoice_scraper.html`. Run `node scripts/sync-config.mjs` after changing it.
 
@@ -86,7 +86,11 @@ The scraper's own setup is in `invoice-scraper/README.md`. Run `invoice-scraper/
 
 ## Mail
 
-**Mail** shows Relay Mail, the Gmail and Outlook client. Phase 1 is the full interface on a demo mailbox stored in this browser. Source and the built page both live in `mail-client/`. WTM opens `mail-client/relay-mail.html`.
+**Mail** shows Relay Mail. IT and department heads have it. For anyone else, admin or IT opens the person under **Staff/Departments** and chooses **Unlock Mail**. Everyone else doesn't see the Mail button. A head of an archived department loses it.
+
+Before anyone can connect a mailbox, admin or IT opens **Mail → Connected accounts** and pastes the Google and Microsoft OAuth client ids. Register the redirect URI shown there with both providers. The client ids are saved once in Supabase (`mail_settings`) and everyone with Mail uses them.
+
+**Connect Gmail** and **Connect Microsoft Outlook** sign in through the provider's own page. Each mailbox, with its label, signature, default choice and sign-in token, is saved to that person's WTM login (`mail_accounts`). It follows them to other computers. Only that person can read it, through `wtm_mail_setup`. No table policy exposes it. Messages are cached in the browser, separately for each login. Sample accounts are included so the screens can be tried. Source and the built page both live in `mail-client/`. WTM opens `mail-client/relay-mail.html`.
 
 After changing the mail client, rebuild that page:
 
@@ -96,7 +100,7 @@ npm install
 npm run build:single
 ```
 
-That writes `mail-client/relay-mail.html`, which the Mail section loads. **Open in a new tab** opens it on its own. Press **E** to open Mail. It does not use WTM sign-in.
+That writes `mail-client/relay-mail.html`, which the Mail section loads. **Open in a new tab** opens it on its own and uses the same WTM sign-in. Press **E** to open Mail. Opened with no WTM config at all (for example `npm run dev`), it shows only the sample mailbox.
 
 ## Calendar
 

@@ -1,13 +1,35 @@
 import { deliveryToEmail, seedSnapshot, SYNC_DELIVERIES } from '../../data/mockData';
 import { uid } from '../../lib/id';
 import { htmlToText } from '../../lib/sanitize';
-import { loadJSON, saveJSON } from '../../lib/storage';
+import { loadJSON, removeKey, saveJSON } from '../../lib/storage';
 import type { DraftInput, Email, EmailAccount, EmailPatch, Folder, Label, MailSnapshot, OutgoingAttachment, Provider } from '../../types/mail';
-import type { MailService } from './MailService';
+import type { MailAccess, MailService } from './MailService';
+import {
+  accountIdFor,
+  buildAuthUrl,
+  colours,
+  forgetToken,
+  isLive,
+  missingClientMessage,
+  patchLive,
+  rememberToken,
+  replaceInbox,
+  sendLive,
+  sendToOpener,
+  setClients,
+  takeRedirect,
+  loadTokens,
+  type RedirectResult,
+  type Token,
+} from './oauth';
+import { deleteAccount, fetchSetup, saveAccount, saveSignInApps as saveApps, saveToken, signedIn, wtmClient, type RemoteAccount, type WtmClient } from './wtm';
 
 const KEY = 'mailbox-v1';
 const SYNC_KEY = 'sync-deliveries-v1';
 const LATENCY_MS = 120;
+
+const DEMO: MailAccess = { mode: 'demo', message: '', canConfigure: false, googleClientId: '', microsoftClientId: '' };
+const locked = (message: string): MailAccess => ({ ...DEMO, mode: 'locked', message });
 
 const wait = (ms = LATENCY_MS) => new Promise((r) => setTimeout(r, ms));
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -19,17 +41,102 @@ function storable(a: OutgoingAttachment) {
   return rest.previewUrl?.startsWith('blob:') ? { ...rest, previewUrl: undefined } : rest;
 }
 
-/** Phase 1 backend: async, persisted to localStorage, deterministic demo behaviour. */
+/**
+ * Messages and folders are cached in this browser, one cache per WTM login.
+ * Connected Gmail and Outlook mailboxes, and their sign-in tokens, are saved
+ * to the WTM login through wtm.ts. Sample accounts stay local.
+ */
 export class MockMailService implements MailService {
   readonly mode = 'mock' as const;
   private db: MailSnapshot;
+  private key = KEY;
+  private info: MailAccess = DEMO;
+  private client: WtmClient | null = null;
+  private remote: RemoteAccount[] = [];
+  private attached: Promise<void> | null = null;
 
   constructor() {
+    removeKey('oauth-tokens');
+    removeKey('oauth-clients');
     this.db = loadJSON<MailSnapshot>(KEY) ?? seedSnapshot();
   }
 
   private commit() {
-    saveJSON(KEY, this.db);
+    saveJSON(this.key, this.db);
+  }
+
+  access() {
+    return this.info;
+  }
+
+  /** Finds the WTM login and loads its mail setup, once per page. */
+  private attach() {
+    this.attached ??= (async () => {
+      const client = await wtmClient();
+      if (!client) return;
+      if (!(await signedIn(client))) {
+        this.info = locked('Sign in to Work Task Manager, then open Mail from there.');
+        return;
+      }
+      const setup = await fetchSetup(client);
+      if (!setup.allowed) {
+        this.info = locked('Mail is for department heads and IT. Ask admin or IT to unlock it for you.');
+        return;
+      }
+      this.client = client;
+      this.applySetup(setup.google_client_id ?? '', setup.microsoft_client_id ?? '', !!setup.can_configure, setup.accounts ?? []);
+      this.key = `${KEY}:${setup.user_id}`;
+      this.db = loadJSON<MailSnapshot>(this.key) ?? seedSnapshot();
+      this.mergeRemote();
+      this.commit();
+    })().catch((err) => {
+      this.attached = null;
+      throw err;
+    });
+    return this.attached;
+  }
+
+  private applySetup(google: string, microsoft: string, canConfigure: boolean, accounts: RemoteAccount[]) {
+    this.info = { mode: 'live', message: '', canConfigure, googleClientId: google, microsoftClientId: microsoft };
+    this.remote = accounts;
+    setClients(google, microsoft);
+    loadTokens(
+      accounts.filter((a) => a.token?.access).map((a) => [a.id, a.token as Token]),
+      (id, token) => {
+        const a = this.db.accounts.find((x) => x.id === id);
+        if (a && this.client) void saveToken(this.client, a, token).catch(() => {});
+      },
+    );
+  }
+
+  /** The saved mailboxes win: add new ones, refresh details, drop ones removed elsewhere. */
+  private mergeRemote() {
+    const ids = new Set(this.remote.map((r) => r.id));
+    const gone = new Set(this.db.accounts.filter((a) => isLive(a.id) && !ids.has(a.id)).map((a) => a.id));
+    this.db.accounts = this.db.accounts.filter((a) => !gone.has(a.id));
+    this.db.emails = this.db.emails.filter((e) => !gone.has(e.accountId));
+    for (const r of this.remote) {
+      const existing = this.db.accounts.find((a) => a.id === r.id);
+      const details = {
+        provider: r.provider,
+        providerEmail: r.provider_email,
+        displayName: r.display_name || r.provider_email,
+        label: r.label || r.display_name || r.provider_email,
+        colour: r.colour || colours[r.provider],
+        signature: r.signature,
+        isDefault: r.is_default,
+        connectedAt: r.connected_at,
+      };
+      if (existing) Object.assign(existing, details);
+      else this.db.accounts.push({ id: r.id, ...details, syncStatus: r.token?.access ? 'ok' : 'error', syncError: r.token?.access ? null : 'Sign in again.', lastSyncAt: null });
+    }
+    if (this.remote.some((r) => r.is_default)) for (const a of this.db.accounts) if (!isLive(a.id)) a.isDefault = false;
+    if (!this.db.accounts.some((a) => a.isDefault) && this.db.accounts[0]) this.db.accounts[0].isDefault = true;
+  }
+
+  private async saveRemote(a: EmailAccount, token?: Token) {
+    if (!this.client || !isLive(a.id)) return;
+    await saveAccount(this.client, a, token);
   }
 
   private account(id: string): EmailAccount {
@@ -44,13 +151,22 @@ export class MockMailService implements MailService {
   }
 
   async load(): Promise<MailSnapshot> {
-    await wait(350);
+    const redirect = await takeRedirect();
+    if (redirect && sendToOpener(redirect)) return clone(this.db);
+    await this.attach();
+    if (redirect) await this.finishConnect(redirect);
+    else await wait(350);
     return clone(this.db);
   }
 
   async reset(): Promise<MailSnapshot> {
     await wait();
     this.db = seedSnapshot();
+    if (this.client) {
+      const setup = await fetchSetup(this.client);
+      if (setup.allowed) this.applySetup(setup.google_client_id ?? '', setup.microsoft_client_id ?? '', !!setup.can_configure, setup.accounts ?? []);
+      this.mergeRemote();
+    }
     saveJSON(SYNC_KEY, {});
     this.commit();
     return clone(this.db);
@@ -58,6 +174,14 @@ export class MockMailService implements MailService {
 
   async updateEmails(ids: string[], patch: EmailPatch) {
     await wait();
+    const live = this.db.emails.filter((e) => ids.includes(e.id) && isLive(e.accountId));
+    const byAccount = new Map<string, Email[]>();
+    for (const email of live) {
+      const list = byAccount.get(email.accountId) ?? [];
+      list.push(email);
+      byAccount.set(email.accountId, list);
+    }
+    for (const [accountId, emails] of byAccount) await patchLive(this.account(accountId), emails, patch);
     this.each(ids, (e) => Object.assign(e, patch));
     this.commit();
   }
@@ -139,7 +263,8 @@ export class MockMailService implements MailService {
   async send(input: DraftInput): Promise<Email> {
     await wait(600);
     const a = this.account(input.accountId);
-    if (a.syncStatus === 'error') throw new Error(`${a.label} needs to be reconnected before it can send.`);
+    if (isLive(a.id)) await sendLive(a, input);
+    else if (a.syncStatus === 'error') throw new Error(`${a.label} needs to be reconnected before it can send.`);
     if (input.id) this.db.emails = this.db.emails.filter((e) => e.id !== input.id);
     const sent = this.toEmail(input, 'sent', uid('msg'));
     this.db.emails.push(sent);
@@ -157,6 +282,18 @@ export class MockMailService implements MailService {
   async syncAccount(accountId: string) {
     await wait(900);
     const a = this.account(accountId);
+    if (isLive(a.id)) {
+      try {
+        const delivered = await replaceInbox(this.db, a);
+        this.commit();
+        return { account: clone(a), delivered: clone(delivered) };
+      } catch (err) {
+        a.syncStatus = 'error';
+        a.syncError = err instanceof Error ? err.message : 'This account did not sync.';
+        this.commit();
+        throw err;
+      }
+    }
     if (a.syncStatus === 'error') throw new Error(a.syncError ?? `${a.label} can't sync right now.`);
     const counts = loadJSON<Record<string, number>>(SYNC_KEY) ?? {};
     const queue = SYNC_DELIVERIES[accountId] ?? [];
@@ -178,15 +315,64 @@ export class MockMailService implements MailService {
   }
 
   async beginConnect(provider: Provider) {
-    await wait();
-    return {
-      url: null,
-      message: provider === 'gmail' ? 'Google sign-in is connected in Phase 3. The demo accounts show how it will look.' : 'Microsoft sign-in is connected in Phase 4. The demo accounts show how it will look.',
-    };
+    await this.attach();
+    if (this.info.mode === 'demo') return { url: null, message: 'Open Mail from Work Task Manager to connect a real mailbox.' };
+    if (this.info.mode === 'locked') return { url: null, message: this.info.message };
+    const url = await buildAuthUrl(provider);
+    return { url, message: url ? '' : missingClientMessage(provider) };
+  }
+
+  async finishConnect(result: RedirectResult) {
+    await this.attach();
+    if (result.error || !result.connected) throw new Error(result.error || 'Sign-in did not finish.');
+    if (this.info.mode !== 'live' || !this.client) throw new Error(this.info.message || 'Open Mail from Work Task Manager to connect a mailbox.');
+    const c = result.connected;
+    const id = accountIdFor(c.provider, c.email);
+    let account = this.db.accounts.find((a) => a.id === id);
+    if (!account) {
+      account = {
+        id,
+        provider: c.provider,
+        providerEmail: c.email,
+        displayName: c.name || c.email,
+        label: c.name || c.email,
+        colour: colours[c.provider],
+        signature: '',
+        isDefault: !this.db.accounts.some((a) => isLive(a.id)),
+        syncStatus: 'ok',
+        syncError: null,
+        lastSyncAt: null,
+        connectedAt: new Date().toISOString(),
+      };
+      if (account.isDefault) for (const a of this.db.accounts) a.isDefault = false;
+      this.db.accounts.push(account);
+    }
+    account.syncStatus = 'ok';
+    account.syncError = null;
+    rememberToken(id, c.token);
+    await saveAccount(this.client, account, c.token);
+    try {
+      await replaceInbox(this.db, account);
+    } catch (err) {
+      account.syncStatus = 'error';
+      account.syncError = err instanceof Error ? err.message : 'This account did not sync.';
+    }
+    this.commit();
+    return c.email;
+  }
+
+  async saveSignInApps(google: string, microsoft: string) {
+    await this.attach();
+    if (!this.client || !this.info.canConfigure) throw new Error('Only admin and IT set up mail sign-in.');
+    await saveApps(this.client, google, microsoft);
+    this.info = { ...this.info, googleClientId: google.trim(), microsoftClientId: microsoft.trim() };
+    setClients(google, microsoft);
   }
 
   async disconnect(accountId: string) {
     await wait();
+    if (this.client && isLive(accountId)) await deleteAccount(this.client, accountId);
+    forgetToken(accountId);
     const wasDefault = this.account(accountId).isDefault;
     this.db.accounts = this.db.accounts.filter((a) => a.id !== accountId);
     this.db.emails = this.db.emails.filter((e) => e.accountId !== accountId);
@@ -197,6 +383,7 @@ export class MockMailService implements MailService {
   async updateAccount(accountId: string, patch: Partial<Pick<EmailAccount, 'signature' | 'isDefault' | 'label' | 'colour'>>) {
     await wait();
     const a = this.account(accountId);
+    await this.saveRemote({ ...a, ...patch });
     if (patch.isDefault) for (const x of this.db.accounts) x.isDefault = false;
     Object.assign(a, patch);
     this.commit();

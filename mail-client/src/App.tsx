@@ -42,6 +42,15 @@ function Shell() {
     );
   }
 
+  if (state.status === 'ready' && state.access.mode === 'locked') {
+    return (
+      <div className="fatal">
+        <h1>Mail is locked</h1>
+        <p>{state.access.message}</p>
+      </div>
+    );
+  }
+
   const content =
     ui.screen === 'accounts' ? <AccountsView layout={layout} /> : ui.screen === 'settings' ? <SettingsView layout={layout} /> : <MailView layout={layout} onShowShortcuts={() => setShortcuts(true)} />;
 

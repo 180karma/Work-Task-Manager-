@@ -1,4 +1,14 @@
 import type { DraftInput, Email, EmailAccount, EmailPatch, Folder, Label, MailSnapshot, Provider } from '../../types/mail';
+import type { RedirectResult } from './oauth';
+
+/** Who may use Mail here. `demo` runs without Work Task Manager; `locked` is a WTM login without Mail. */
+export interface MailAccess {
+  mode: 'demo' | 'live' | 'locked';
+  message: string;
+  canConfigure: boolean;
+  googleClientId: string;
+  microsoftClientId: string;
+}
 
 /**
  * The backend contract. The UI only talks to this interface, so Phase 2+
@@ -9,6 +19,8 @@ export interface MailService {
   readonly mode: 'mock' | 'supabase';
 
   load(): Promise<MailSnapshot>;
+  /** Set by load(). */
+  access(): MailAccess;
 
   updateEmails(ids: string[], patch: EmailPatch): Promise<void>;
   /** Moves messages and records where they came from (for Restore / Not spam). */
@@ -25,6 +37,10 @@ export interface MailService {
   syncAccount(accountId: string): Promise<{ account: EmailAccount; delivered: Email[] }>;
   /** Starts OAuth. Returns the provider consent URL, or null with a message when not available. */
   beginConnect(provider: Provider): Promise<{ url: string | null; message: string }>;
+  /** Saves the mailbox the sign-in popup returned. Resolves to its address. */
+  finishConnect(result: RedirectResult): Promise<string>;
+  /** Admin and IT: the Google and Microsoft sign-in apps everyone uses. */
+  saveSignInApps(google: string, microsoft: string): Promise<void>;
   disconnect(accountId: string): Promise<void>;
   updateAccount(accountId: string, patch: Partial<Pick<EmailAccount, 'signature' | 'isDefault' | 'label' | 'colour'>>): Promise<EmailAccount[]>;
 

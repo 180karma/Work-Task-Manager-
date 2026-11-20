@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { LuCircleAlert, LuCircleCheck, LuMail, LuMenu, LuPlugZap, LuRefreshCw, LuShieldCheck, LuUnplug } from 'react-icons/lu';
 import type { LayoutMode } from '../../hooks/useMediaQuery';
 import { formatRelative } from '../../lib/format';
+import { redirectUri } from '../../services/mail/oauth';
 import { confirmAction } from '../../state/confirm';
 import { useMailActions, useMailState } from '../../state/MailStore';
 import { useUI } from '../../state/UIStore';
@@ -17,7 +18,8 @@ export function AccountsView({ layout }: { layout: LayoutMode }) {
   const state = useMailState();
   const mail = useMailActions();
   const ui = useUI();
-  const demo = mail.service.mode === 'mock';
+  const { access } = state;
+  const appsReady = !!(access.googleClientId && access.microsoftClientId);
 
   return (
     <section className="page" aria-labelledby="accounts-title">
@@ -58,12 +60,22 @@ export function AccountsView({ layout }: { layout: LayoutMode }) {
           </button>
         </div>
 
-        {demo && (
+        {access.mode === 'demo' ? (
           <p className="notice notice--info">
             <LuCircleAlert />
-            <span>Demo mailbox. These accounts are sample data so you can try every screen. Google and Microsoft sign-in are wired up in Phases 3 and 4.</span>
+            <span>This is the sample mailbox. Open Mail from Work Task Manager to connect a real Gmail or Microsoft address.</span>
+          </p>
+        ) : (
+          <p className="notice notice--info">
+            <LuCircleAlert />
+            <span>
+              Mailboxes you connect are saved to your Work Task Manager login, so they follow you to other computers. Relay opens the provider’s page and never asks for the mailbox password.
+              {!appsReady && !access.canConfigure && ' Ask admin or IT to set up Gmail and Microsoft sign-in first.'}
+            </span>
           </p>
         )}
+
+        {access.canConfigure && <SignInSetup google={access.googleClientId} microsoft={access.microsoftClientId} />}
 
         {state.accounts.length === 0 ? (
           <div className="empty">
@@ -80,6 +92,44 @@ export function AccountsView({ layout }: { layout: LayoutMode }) {
         )}
       </div>
     </section>
+  );
+}
+
+function SignInSetup(saved: { google: string; microsoft: string }) {
+  const mail = useMailActions();
+  const [google, setGoogle] = useState(saved.google);
+  const [microsoft, setMicrosoft] = useState(saved.microsoft);
+  const [busy, setBusy] = useState(false);
+  const ready = !!(saved.google && saved.microsoft);
+
+  return (
+    <form
+      className="account-card"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        await mail.saveSignInApps(google, microsoft);
+        setBusy(false);
+      }}
+    >
+      <h2>{ready ? 'Sign-in apps' : 'Turn on Gmail and Microsoft sign-in'}</h2>
+      <p className="page__lede">
+        Admin and IT only. Paste the OAuth client id from Google Cloud and from Microsoft Entra. Everyone with Mail signs in through these apps. Register this redirect URI on both: <code>{redirectUri()}</code>
+      </p>
+      <label className="field-label" htmlFor="google-client">
+        Google client id
+      </label>
+      <input id="google-client" className="text-input" value={google} autoComplete="off" spellCheck={false} onChange={(e) => setGoogle(e.target.value)} placeholder="….apps.googleusercontent.com" />
+      <label className="field-label" htmlFor="microsoft-client">
+        Microsoft client id
+      </label>
+      <input id="microsoft-client" className="text-input" value={microsoft} autoComplete="off" spellCheck={false} onChange={(e) => setMicrosoft(e.target.value)} placeholder="Application (client) id" />
+      <div className="account-card__actions">
+        <button type="submit" className="btn btn--primary" disabled={busy}>
+          {busy && <Spinner size={14} />} Save sign-in
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -154,7 +204,7 @@ function AccountCard({ account: a, syncing, onlyAccount }: { account: EmailAccou
           {SCOPES[a.provider].map((s) => (
             <li key={s}>{s}</li>
           ))}
-          <li className="is-never">Never your password. Sign-in tokens are encrypted on the server and never sent to this browser.</li>
+          <li className="is-never">Never your password. The sign-in token is saved to your Work Task Manager login, and only you can read it.</li>
         </ul>
       )}
 

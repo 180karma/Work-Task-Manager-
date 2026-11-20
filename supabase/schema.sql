@@ -312,6 +312,39 @@ create table if not exists public.message_reads (
   primary key (profile_id, conv)
 );
 
+-- Mail (section 7b): people unlocked beyond IT and department heads,
+-- the shared sign-in apps, and each person's connected mailboxes.
+create table if not exists public.mail_access (
+  profile_id uuid primary key references public.profiles(id) on delete cascade,
+  granted_by uuid references public.profiles(id) on delete set null,
+  granted_at timestamptz not null default now()
+);
+
+-- One row. Client ids are public values, not secrets.
+create table if not exists public.mail_settings (
+  id                  smallint primary key default 1 check (id = 1),
+  google_client_id    text not null default '' check (char_length(google_client_id) <= 200),
+  microsoft_client_id text not null default '' check (char_length(microsoft_client_id) <= 200),
+  updated_by          uuid references public.profiles(id) on delete set null,
+  updated_at          timestamptz not null default now()
+);
+
+create table if not exists public.mail_accounts (
+  profile_id     uuid not null references public.profiles(id) on delete cascade,
+  id             text not null check (char_length(id) <= 300),   -- 'live_<provider>_<address>'
+  provider       text not null check (provider in ('gmail', 'outlook')),
+  provider_email text not null check (char_length(provider_email) between 3 and 254),
+  display_name   text not null default '' check (char_length(display_name) <= 120),
+  label          text not null default '' check (char_length(label) <= 120),
+  colour         text not null default '' check (char_length(colour) <= 20),
+  signature      text not null default '' check (char_length(signature) <= 1000),
+  is_default     boolean not null default false,
+  token          jsonb not null default '{}'::jsonb,
+  connected_at   timestamptz not null default now(),
+  updated_at     timestamptz not null default now(),
+  primary key (profile_id, id)
+);
+
 -- ---------------------------------------------------------------------
 -- 2. Identity and visibility helpers
 -- ---------------------------------------------------------------------
@@ -689,7 +722,9 @@ language sql stable security definer set search_path = public as $$
     'rooms', coalesce((select jsonb_agg(to_jsonb(x) order by x.name) from rooms x), '[]'::jsonb),
     'locations', coalesce((select jsonb_agg(to_jsonb(x) order by x.name) from locations x), '[]'::jsonb),
     'maps', coalesce((select jsonb_agg(to_jsonb(x) order by x.name) from maps x), '[]'::jsonb),
-    'tag_rules', coalesce((select jsonb_agg(to_jsonb(x) order by x.phrase) from tag_rules x), '[]'::jsonb))
+    'tag_rules', coalesce((select jsonb_agg(to_jsonb(x) order by x.phrase) from tag_rules x), '[]'::jsonb),
+    'mail_access', coalesce((select jsonb_agg(ma.profile_id) from mail_access ma
+        where public.wtm_my_rank() >= 3 or ma.profile_id = auth.uid()), '[]'::jsonb))
 $$;
 
 create or replace function public.wtm_bootstrap(p_log_limit int default 2000, p_msg_limit int default 1500) returns jsonb
@@ -1925,6 +1960,122 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
+-- 7b. Mail. IT and department heads use Mail. Admin or IT can unlock it
+--     for anyone else. Each person's mailboxes and sign-in tokens are
+--     theirs alone: no table policy reads them, only wtm_mail_setup.
+-- ---------------------------------------------------------------------
+create or replace function public.wtm__can_mail(p uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select public.wtm_rank_of(p) = 4
+      or (public.wtm_rank_of(p) > 0 and (
+            exists (select 1 from department_members dm join departments d on d.id = dm.department_id
+                     where dm.profile_id = p and dm.head and not d.archived)
+         or exists (select 1 from mail_access where profile_id = p)))
+$$;
+
+create or replace function public.wtm_mail_setup() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare me uuid := auth.uid(); s mail_settings;
+begin
+  if not public.wtm__can_mail(me) then
+    return jsonb_build_object('allowed', false, 'user_id', me);
+  end if;
+  select * into s from mail_settings where id = 1;
+  return jsonb_build_object(
+    'allowed', true,
+    'user_id', me,
+    'can_configure', public.wtm_my_rank() >= 3,
+    'google_client_id', coalesce(s.google_client_id, ''),
+    'microsoft_client_id', coalesce(s.microsoft_client_id, ''),
+    'accounts', coalesce((select jsonb_agg(jsonb_build_object(
+        'id', a.id, 'provider', a.provider, 'provider_email', a.provider_email, 'display_name', a.display_name,
+        'label', a.label, 'colour', a.colour, 'signature', a.signature, 'is_default', a.is_default,
+        'token', a.token, 'connected_at', a.connected_at) order by a.connected_at)
+      from mail_accounts a where a.profile_id = me), '[]'::jsonb));
+end $$;
+
+create or replace function public.wtm_save_mail_account(p jsonb) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  me uuid := auth.uid();
+  prov text := p->>'provider';
+  addr text := lower(btrim(coalesce(p->>'provider_email', '')));
+  v_id text := coalesce(p->>'id', '');
+  fresh boolean;
+begin
+  perform public.wtm__require(public.wtm__can_mail(me), 'Mail is for department heads and IT. Ask admin or IT to unlock it.');
+  perform public.wtm__require(prov in ('gmail', 'outlook'), 'Choose Gmail or Outlook.');
+  perform public.wtm__require(addr ~ '^[^@\s]+@[^@\s]+$', 'That mailbox address isn''t valid.');
+  perform public.wtm__require(v_id = 'live_' || prov || '_' || addr, 'That mailbox doesn''t match its address.');
+  perform public.wtm__require(p->'token' is null or jsonb_typeof(p->'token') = 'object', 'The sign-in token isn''t valid.');
+  fresh := not exists (select 1 from mail_accounts where profile_id = me and id = v_id);
+  if coalesce((p->>'is_default')::boolean, false) then
+    update mail_accounts set is_default = false, updated_at = now() where profile_id = me and id <> v_id and is_default;
+  end if;
+  insert into mail_accounts (profile_id, id, provider, provider_email, display_name, label, colour, signature, is_default, token)
+  values (me, v_id, prov, addr,
+          left(btrim(coalesce(p->>'display_name', '')), 120), left(btrim(coalesce(p->>'label', '')), 120),
+          left(coalesce(p->>'colour', ''), 20), left(coalesce(p->>'signature', ''), 1000),
+          coalesce((p->>'is_default')::boolean, false), coalesce(p->'token', '{}'::jsonb))
+  on conflict (profile_id, id) do update set
+    display_name = case when p ? 'display_name' then excluded.display_name else mail_accounts.display_name end,
+    label        = case when p ? 'label'        then excluded.label        else mail_accounts.label end,
+    colour       = case when p ? 'colour'       then excluded.colour       else mail_accounts.colour end,
+    signature    = case when p ? 'signature'    then excluded.signature    else mail_accounts.signature end,
+    is_default   = case when p ? 'is_default'   then excluded.is_default   else mail_accounts.is_default end,
+    token        = case when p ? 'token'        then excluded.token        else mail_accounts.token end,
+    updated_at   = now();
+  if fresh then
+    perform public.wtm__log('mail', null::tasks, 'Connected ' || case prov when 'gmail' then 'Gmail' else 'Outlook' end || ' ' || addr, null, me, me);
+  end if;
+end $$;
+
+create or replace function public.wtm_delete_mail_account(p_id text) returns void
+language plpgsql security definer set search_path = public as $$
+declare me uuid := auth.uid(); a mail_accounts;
+begin
+  perform public.wtm__require(public.wtm_my_rank() > 0, 'Your account is turned off.');
+  delete from mail_accounts where profile_id = me and id = p_id returning * into a;
+  if a.id is not null then
+    perform public.wtm__log('mail', null::tasks, 'Disconnected ' || case a.provider when 'gmail' then 'Gmail' else 'Outlook' end || ' ' || a.provider_email, null, me, me);
+  end if;
+end $$;
+
+create or replace function public.wtm_save_mail_settings(p jsonb) returns void
+language plpgsql security definer set search_path = public as $$
+declare me uuid := auth.uid(); old mail_settings; g text; m text; ch text[] := '{}';
+begin
+  perform public.wtm__require(public.wtm_my_rank() >= 3, 'Only admin and IT set up mail sign-in.');
+  select * into old from mail_settings where id = 1;
+  g := case when p ? 'google_client_id' then left(btrim(coalesce(p->>'google_client_id', '')), 200) else coalesce(old.google_client_id, '') end;
+  m := case when p ? 'microsoft_client_id' then left(btrim(coalesce(p->>'microsoft_client_id', '')), 200) else coalesce(old.microsoft_client_id, '') end;
+  insert into mail_settings (id, google_client_id, microsoft_client_id, updated_by, updated_at)
+  values (1, g, m, me, now())
+  on conflict (id) do update set google_client_id = g, microsoft_client_id = m, updated_by = me, updated_at = now();
+  if g <> coalesce(old.google_client_id, '') then ch := ch || ('Google sign-in ' || case when g = '' then 'removed' else 'set' end); end if;
+  if m <> coalesce(old.microsoft_client_id, '') then ch := ch || ('Microsoft sign-in ' || case when m = '' then 'removed' else 'set' end); end if;
+  if cardinality(ch) > 0 then
+    perform public.wtm__log('setting', null::tasks, 'Mail · ' || array_to_string(ch, ' · '));
+  end if;
+end $$;
+
+create or replace function public.wtm_set_mail_access(p_user uuid, p_on boolean) returns void
+language plpgsql security definer set search_path = public as $$
+declare me uuid := auth.uid(); had boolean;
+begin
+  perform public.wtm__require(public.wtm_my_rank() >= 3, 'Only admin and IT can unlock Mail.');
+  perform public.wtm__require(exists (select 1 from profiles where id = p_user and removed_at is null), 'That person doesn''t exist.');
+  had := exists (select 1 from mail_access where profile_id = p_user);
+  if p_on and not had then
+    insert into mail_access (profile_id, granted_by) values (p_user, me);
+    perform public.wtm__log('user', null::tasks, public.wtm__name(p_user) || ': Mail unlocked', null, me, p_user);
+  elsif not p_on and had then
+    delete from mail_access where profile_id = p_user;
+    perform public.wtm__log('user', null::tasks, public.wtm__name(p_user) || ': Mail locked', null, me, p_user);
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------
 -- 8. Service functions for the wtm-admin Edge Function (service role only)
 -- ---------------------------------------------------------------------
 create or replace function public.wtm_svc_check(p_caller uuid, p_target uuid, p_role public.wtm_role) returns void
@@ -2014,6 +2165,8 @@ begin
   insert into group_members (group_id, profile_id)
   select id, p_caller from moved on conflict do nothing;
   update projects set owner_id = null where owner_id = p_user;
+  delete from mail_accounts where profile_id = p_user;
+  delete from mail_access where profile_id = p_user;
   update profiles set
     active = false, removed_at = now(), short_name = '', email = '', username = '', phone = '',
     must_change_password = false, updated_at = now()
@@ -2163,13 +2316,21 @@ create policy wtm_read on public.locations for select to authenticated using (pu
 alter table public.maps enable row level security;
 drop policy if exists wtm_read on public.maps;
 create policy wtm_read on public.maps for select to authenticated using (public.wtm_my_rank() > 0);
+alter table public.mail_access enable row level security;
+drop policy if exists wtm_read on public.mail_access;
+create policy wtm_read on public.mail_access for select to authenticated using (
+  profile_id = auth.uid() or public.wtm_my_rank() >= 3);
+-- No read policy: mailboxes and tokens only come back through wtm_mail_setup.
+alter table public.mail_accounts enable row level security;
+alter table public.mail_settings enable row level security;
+revoke all on public.mail_accounts, public.mail_settings from anon, authenticated, public;
 
 -- no direct writes from the browser, for anyone
 do $$
 declare t text;
 begin
   foreach t in array array['profiles', 'departments', 'department_members', 'groups', 'group_members', 'projects', 'rooms',
-                           'locations', 'maps', 'tag_rules', 'tag_departments', 'tasks', 'task_assignees', 'timers', 'log_entries', 'messages', 'message_reads', 'notices', 'orders', 'daily_tasks', 'calendar_entries'] loop
+                           'locations', 'maps', 'tag_rules', 'tag_departments', 'tasks', 'task_assignees', 'timers', 'log_entries', 'messages', 'message_reads', 'notices', 'orders', 'daily_tasks', 'calendar_entries', 'mail_access'] loop
     execute format('revoke all on public.%I from anon, public', t);
     execute format('revoke insert, update, delete, truncate, references, trigger on public.%I from authenticated', t);
     execute format('grant select on public.%I to authenticated', t);
@@ -2202,7 +2363,9 @@ grant execute on function
   public.wtm_save_rule(jsonb), public.wtm_delete_rule(uuid), public.wtm_save_rules(jsonb), public.wtm_save_tag_department(jsonb),
   public.wtm_save_notice(jsonb), public.wtm_save_order(jsonb),
   public.wtm_save_daily(jsonb), public.wtm_open_daily(date, time),
-  public.wtm_save_calendar(jsonb), public.wtm_import_holidays(jsonb), public.wtm_calendar_feed(text)
+  public.wtm_save_calendar(jsonb), public.wtm_import_holidays(jsonb), public.wtm_calendar_feed(text),
+  public.wtm_mail_setup(), public.wtm_save_mail_account(jsonb), public.wtm_delete_mail_account(text),
+  public.wtm_save_mail_settings(jsonb), public.wtm_set_mail_access(uuid, boolean)
 to authenticated;
 grant execute on function public.wtm_login_email(text) to anon, authenticated;
 grant execute on function public.wtm_svc_check(uuid, uuid, public.wtm_role), public.wtm_svc_after_create(uuid, uuid, jsonb),
@@ -2218,7 +2381,7 @@ begin
   if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
     create publication supabase_realtime;
   end if;
-  foreach t in array array['tasks', 'task_assignees', 'timers', 'log_entries', 'messages', 'notices', 'orders', 'daily_tasks', 'tag_rules', 'tag_departments', 'profiles', 'department_members', 'locations', 'maps', 'calendar_entries'] loop
+  foreach t in array array['tasks', 'task_assignees', 'timers', 'log_entries', 'messages', 'notices', 'orders', 'daily_tasks', 'tag_rules', 'tag_departments', 'profiles', 'department_members', 'locations', 'maps', 'calendar_entries', 'mail_access'] loop
     if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
       execute format('alter publication supabase_realtime add table public.%I', t);
     end if;

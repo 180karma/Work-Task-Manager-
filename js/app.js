@@ -151,7 +151,8 @@ const ACTIONS = {
   group:    { label: 'Group',         cat: 'admin', tone: 'muted' },
   project:  { label: 'Project',       cat: 'admin', tone: 'muted' },
   setting:  { label: 'Setting',       cat: 'admin', tone: 'muted' },
-  calendar: { label: 'Calendar',      cat: 'admin', tone: 'muted' }
+  calendar: { label: 'Calendar',      cat: 'admin', tone: 'muted' },
+  mail:     { label: 'Mail',          cat: 'admin', tone: 'muted' }
 };
 const CATS = [['task', 'Task changes', 'info'], ['done', 'Completions', 'accent'], ['time', 'Time', 'signal'], ['note', 'Notes', 'ink'], ['msg', 'Messages', 'info'], ['admin', 'Admin', 'muted']];
 const actionOf = a => ACTIONS[a] || { label: a, cat: 'admin', tone: 'muted' };
@@ -165,7 +166,7 @@ const D = {
   profiles: new Map(), depts: new Map(), groups: new Map(), projects: new Map(), rooms: [], rules: [],
   locations: new Map(), maps: new Map(),
   dm: { byDept: new Map(), byUser: new Map() }, gm: { byGroup: new Map(), byUser: new Map() },
-  heads: new Map(), tagDepts: new Map(),
+  heads: new Map(), tagDepts: new Map(), mailAccess: new Set(),
   tasks: new Map(), log: new Map(), msgs: new Map(), notices: new Map(), orders: new Map(), daily: new Map(), calendar: new Map(), reads: {},
   skew: 0, since: null, logMax: 0, msgMax: 0, logMin: Infinity, logComplete: false,
   live: false, saving: 0, dirVersion: 0
@@ -244,6 +245,10 @@ const myGroups = () => groupsOf(me());
 const canAdmin = () => D.rank >= 3;
 const canSupervise = () => D.rank >= 2;
 const canManage = p => p && D.rank >= 3 && (D.rank === 4 || rankOf(p.role) < 3);
+const headsLiveDept = uid => Array.from(headDeptsOf(uid)).some(d => { const x = D.depts.get(d); return x && !x.archived; });
+const mailByRole = uid => { const p = prof(uid); return !!p && p.active && (p.role === 'it' || headsLiveDept(uid)); };
+const hasMail = uid => mailByRole(uid) || (!!prof(uid) && prof(uid).active && D.mailAccess.has(uid));
+const canMail = () => D.rank > 0 && hasMail(me());
 const roleChoices = () => D.rank === 4 ? ['staff', 'supervisor', 'admin', 'it'] : ['staff', 'supervisor'];
 const MEDIA = new Map();
 function mediaUrl(bucket, path) {
@@ -537,6 +542,7 @@ function applyDirectory(x) {
     if (m.h) (D.heads.get(m.d) || D.heads.set(m.d, new Set()).get(m.d)).add(m.p);
   }
   D.tagDepts = new Map((x.tag_departments || []).filter(r => !hiddenDepts.has(r.d)).map(r => [r.tag, r.d]));
+  D.mailAccess = new Set(x.mail_access || []);
   for (const m of x.group_members || []) {
     if (hiddenPeople.has(m.p)) continue;
     (D.gm.byGroup.get(m.g) || D.gm.byGroup.set(m.g, new Set()).get(m.g)).add(m.p);
@@ -607,7 +613,7 @@ function subscribe() {
   unsubscribe();
   try {
     channel = sb.channel('wtm-' + uid());
-    for (const table of ['log_entries', 'messages', 'tasks', 'task_assignees', 'notices', 'orders', 'daily_tasks', 'calendar_entries', 'tag_rules', 'tag_departments', 'profiles', 'department_members', 'locations', 'maps']) {
+    for (const table of ['log_entries', 'messages', 'tasks', 'task_assignees', 'notices', 'orders', 'daily_tasks', 'calendar_entries', 'tag_rules', 'tag_departments', 'profiles', 'department_members', 'locations', 'maps', 'mail_access']) {
       channel = channel.on('postgres_changes', { event: '*', schema: 'public', table }, poke);
     }
     channel.subscribe(status => { D.live = status === 'SUBSCRIBED'; renderChrome(); schedulePoll(); });
@@ -695,6 +701,7 @@ function showApp() {
 }
 async function signOut() {
   unsubscribe(); D.ready = false;
+  const mf = $('#mailFrame'); if (mf) { mf.src = 'about:blank'; mf.removeAttribute('src'); }
   try { await sb.auth.signOut(); } catch (_) {}
   showLogin();
 }
@@ -1409,6 +1416,7 @@ function renderChrome() {
   else if (!D.live) { cls = 'busy'; txt = 'Checking'; tip = 'Live updates are unavailable, so WTM checks for changes every 15 seconds.'; }
   el.className = 'sync ' + cls; el.title = tip; el.lastElementChild.textContent = txt;
   $('#meBtn').innerHTML = D.me ? avatar(D.me.id) : '';
+  for (const b of $$('#nav button[data-view="mail"], #dock button[data-view="mail"]')) b.hidden = !canMail();
   for (const b of $$('#nav button[data-view], #dock button')) { if (b.dataset.view === UI.view) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }
   if (UI.view === 'tasks' || UI.view === 'board' || UI.view === 'orders') markSeen(UI.view);
   const un = totalUnread(), label = un > 99 ? '99+' : String(un);
@@ -1898,16 +1906,19 @@ function renderThread() {
   if (threadKey !== key) {
     const wasNew = threadKey.split('|')[0] !== c.key;
     const draft = $('#msgBody') ? $('#msgBody').value : '';
-    let body = '', lastDay = '';
+    let body = '', lastDay = '', prev = null;
     for (const m of msgs) {
       const d = dayOfTs(m.at);
-      if (d !== lastDay) { body += `<div class="dsep">${esc(d === dayKey() ? 'Today' : fmtDay(d))}</div>`; lastDay = d; }
+      if (d !== lastDay) { body += `<div class="dsep">${esc(d === dayKey() ? 'Today' : fmtDay(d))}</div>`; lastDay = d; prev = null; }
       const mine = m.sender === me(), t = m.task_id && D.tasks.get(m.task_id);
+      const cont = !!prev && prev.sender === m.sender && prev.to_kind === m.to_kind && prev.to_id === m.to_id && m.at - prev.at < 5 * 60e3;
+      prev = m;
       const deptObj = m.to_kind === 'dept' ? D.depts.get(m.to_id) : null;
-      const fromLbl = !mine && c.kind !== 'user'
+      const fromLbl = cont ? '' : !mine && c.kind !== 'user'
         ? `${esc(nameOf(m.sender))}${isAll && deptObj ? ` · ${deptTag(deptObj)}` : ''}`
         : (mine && isAll && deptObj ? deptTag(deptObj, 'To ') : '');
-      body += `<div class="bub${mine ? ' me' : ''}">${fromLbl ? `<span class="from">${fromLbl}</span>` : ''}${m.body ? `<span class="body">${msgHtml(m.body)}</span>` : ''}${m.photo ? shotImg(m.photo) : ''}${m.pin ? pinFigure(m.pin, 'mini') : ''}${m.task_id ? `<button type="button" class="tlink" data-open-task="${esc(m.task_id)}">${icon('task', 'width:14px;height:14px')}${esc(t ? trunc(t.title, 50) : 'Linked task')}</button>` : ''}<span class="at">${esc(fmtTime(m.at))}</span></div>`;
+      const tail = m.body && !m.photo && !m.pin && !m.task_id;
+      body += `<div class="bub${mine ? ' me' : ''}${cont ? ' cont' : ''}${tail ? ' inline' : ''}">${fromLbl ? `<span class="from">${fromLbl}</span>` : ''}${m.body ? `<span class="body">${msgHtml(m.body)}</span>` : ''}${m.photo ? shotImg(m.photo) : ''}${m.pin ? pinFigure(m.pin, 'mini') : ''}${m.task_id ? `<button type="button" class="tlink" data-open-task="${esc(m.task_id)}">${icon('task', 'width:14px;height:14px')}${esc(t ? trunc(t.title, 50) : 'Linked task')}</button>` : ''}<span class="at">${esc(fmtTime(m.at))}</span></div>`;
     }
     const depts = liveDepts();
     const deptSelect = isAll && depts.length ? `<label class="msg-dept-opt"><span class="sr">Department (optional)</span><select class="field sm" id="msgDept" title="Optional: tag a department (still read by all)"><option value="">Dept: Optional (All)</option>${depts.map(d => `<option value="${esc(d.id)}"${UI.msgDept === d.id ? ' selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>` : '';
@@ -2239,6 +2250,9 @@ function personSheet(id) {
         <div class="profile-head">${avatar(id, 'lg')}<div><b>${esc(p.full_name || p.username || p.email)}</b><span class="muted">${esc([p.title, (ROLE[p.role] || {}).label].filter(Boolean).join(' · '))}</span></div></div>
         <div class="row">${id !== me() && p.active ? `<button type="button" class="btn" data-sh="dm">${icon('msg')}Message</button>` : ''}${p.active ? `<button type="button" class="btn" data-sh="assign-task">${I.plus}New task for ${esc(shortOf(id))}</button>` : ''}<button type="button" class="btn ghost" data-sh="their-tasks">See their tasks</button></div>
         <dl class="kv"><dt>User name</dt><dd style="user-select:all">${esc(p.username || '—')}</dd><dt>Phone</dt><dd>${esc(p.phone || '—')}</dd><dt>Email</dt><dd style="user-select:all">${esc(p.email || '—')}</dd><dt>Departments</dt><dd>${esc(deptNames(id).join(', ') || '—')}</dd><dt>Groups</dt><dd>${esc(groupsList.join(', ') || '—')}</dd><dt>Role</dt><dd>${esc((ROLE[p.role] || {}).label || p.role)} · this is their access, not their job title</dd>${p.short_name ? `<dt>Known as</dt><dd>${esc(p.short_name)} · picked up when typed in a task</dd>` : ''}</dl>
+        ${D.rank >= 3 && p.active ? `<div class="fld"><span class="lbl">Mail</span><div class="row">${mailByRole(id)
+          ? `<span class="muted" style="font-size:13px">${p.role === 'it' ? 'IT always has Mail.' : 'Department heads always have Mail.'}</span>`
+          : `<button type="button" class="btn" data-sh="mail">${D.mailAccess.has(id) ? 'Lock Mail' : 'Unlock Mail'}</button><span class="muted" id="pf-mail" style="font-size:13px">${D.mailAccess.has(id) ? 'Unlocked. They can connect Gmail or Outlook.' : 'Mail is for IT and department heads unless you unlock it.'}</span>`}</div></div>` : ''}
         ${editName ? `<hr style="border:0;border-top:1px solid var(--line);width:100%;margin:0">
         <h2>${manage ? 'Name and login' : 'Your name'}</h2>
         <div class="fld"><span class="lbl">Profile picture</span>${emojiPickerHtml('pf-face', p.emoji || '')}</div>
@@ -2264,6 +2278,17 @@ function personSheet(id) {
       if (k === 'dm') { closeSheet(true); openConv('user:' + id); }
       else if (k === 'assign-task') { closeSheet(true); setView('tasks'); openNewTask({ title: '', assign: [{ kind: 'user', id }], priority: 3, tags: [] }); }
       else if (k === 'their-tasks') { closeSheet(true); TP.scope = 'user:' + id; TP.tab = 'open'; saveTP(); setView('tasks'); }
+      else if (k === 'mail') {
+        const on = !D.mailAccess.has(id);
+        b.disabled = true;
+        const r = await act('wtm_set_mail_access', { p_user: id, p_on: on }, on ? 'Mail unlocked.' : 'Mail locked.');
+        b.disabled = false;
+        if (r) {
+          const now = D.mailAccess.has(id);
+          b.textContent = now ? 'Lock Mail' : 'Unlock Mail';
+          $('#pf-mail').textContent = now ? 'Unlocked. They can connect Gmail or Outlook.' : 'Mail is for IT and department heads unless you unlock it.';
+        }
+      }
       else if (k === 'reset') {
         if (!sheet.armed) { sheet.armed = true; b.textContent = 'Tap again to reset'; b.classList.add('danger', 'armed'); return; }
         b.disabled = true;
@@ -2741,6 +2766,7 @@ function renderInvoices() {
 // Relay Mail keeps its own mailbox. The frame stays loaded so a draft survives switching views.
 function renderMail() {
   const f = $('#mailFrame');
+  if (!canMail()) { f.src = 'about:blank'; f.removeAttribute('src'); setView('tasks'); return; }
   if (!f.getAttribute('src')) f.src = 'mail-client/relay-mail.html';
 }
 function renderOrders() {
@@ -3227,6 +3253,7 @@ function setNavOpen(open) {
 }
 function setView(v, initial) {
   if (!['tasks', 'messages', 'mail', 'board', 'orders', 'invoices', 'daily', 'calendar', 'handover', 'log', 'people', 'settings'].includes(v)) v = 'tasks';
+  if (v === 'mail' && !canMail()) v = 'tasks';
   UI.view = v; LS.set('wtm.view', v);
   for (const k of ['tasks', 'messages', 'mail', 'board', 'orders', 'invoices', 'daily', 'calendar', 'handover', 'log', 'people', 'settings']) $('#view-' + k).hidden = k !== v;
   try { if (location.hash.slice(1) !== v) history.replaceState(null, '', '#' + v); } catch (_) {}
